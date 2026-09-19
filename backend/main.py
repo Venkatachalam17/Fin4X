@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -271,3 +273,83 @@ def advanced_risk(confidence: float = 0.95, days: int = 1):
     cvar = float(tail.mean()) if len(tail) else cutoff
     cutoff_99 = float(np.quantile(scaled, 0.01))
     return {"source": "Yahoo Finance" if live else "QuantX simulated fallback", "confidence": confidence, "days": days, "var_95": float(np.quantile(scaled, 0.05)), "var_99": cutoff_99, "cvar": cvar, "distribution": scaled.round(6).tolist()}
+
+
+PAPER_ACCOUNT = {"cash": 100000.0, "initial_cash": 100000.0, "positions": {key: 0.0 for key in ASSETS}, "trades": []}
+
+
+def _live_quotes():
+    quotes = {}
+    live = True
+    for key in ASSETS:
+        data, is_live = get_data(key)
+        quotes[key] = {"price": float(data["Close"].iloc[-1]), "change": float(data["Return"].iloc[-1])}
+        live = live and is_live
+    return quotes, live
+
+
+@app.get("/api/advanced/ml-regimes")
+def advanced_ml_regimes(asset: str = "bitcoin"):
+    if asset not in ASSETS:
+        raise HTTPException(status_code=404, detail="Asset not found")
+    data, live = get_data(asset)
+    frame = pd.DataFrame(index=data.index)
+    frame["return"] = data["Return"].rolling(5).mean()
+    frame["volatility"] = data["Return"].rolling(21).std() * np.sqrt(252)
+    frame["momentum"] = data["Close"].pct_change(21)
+    frame = frame.replace([np.inf, -np.inf], np.nan).dropna().tail(520)
+    features = frame.to_numpy(dtype=float)
+    center = features.mean(axis=0)
+    scale = features.std(axis=0)
+    scale[scale == 0] = 1
+    normalized = (features - center) / scale
+    centroids = np.array([normalized.min(axis=0), normalized.mean(axis=0), normalized.max(axis=0)])
+    for _ in range(12):
+        distances = ((normalized[:, None, :] - centroids[None, :, :]) ** 2).sum(axis=2)
+        labels = distances.argmin(axis=1)
+        updated = np.array([normalized[labels == index].mean(axis=0) if np.any(labels == index) else centroids[index] for index in range(3)])
+        if np.allclose(updated, centroids):
+            break
+        centroids = updated
+    profiles = []
+    for index in range(3):
+        sample = frame.iloc[labels == index]
+        profiles.append({"cluster": index, "days": int(len(sample)), "return": float(sample["return"].mean()), "volatility": float(sample["volatility"].mean()), "momentum": float(sample["momentum"].mean())})
+    order = sorted(range(3), key=lambda index: profiles[index]["return"])
+    names = ["Defensive", "Balanced", "Risk-on"]
+    labels_by_cluster = {cluster: names[position] for position, cluster in enumerate(order)}
+    observations = [{"date": date.strftime("%Y-%m-%d"), "return": float(row["return"]), "volatility": float(row["volatility"]), "momentum": float(row["momentum"]), "cluster": int(label)} for (date, row), label in zip(frame.iterrows(), labels)]
+    timeline = [{"date": row["date"], "regime": labels_by_cluster[row["cluster"]], "cluster": row["cluster"]} for row in observations]
+    latest = profiles[int(labels[-1])]
+    return {"asset": asset, "label": ASSETS[asset]["label"], "source": "Yahoo Finance" if live else "QuantX simulated fallback", "model": "KMeans Market Regimes", "current": {"regime": labels_by_cluster[int(labels[-1])], "date": timeline[-1]["date"], "return": latest["return"], "volatility": latest["volatility"], "momentum": latest["momentum"]}, "profiles": [{**profile, "regime": labels_by_cluster[profile["cluster"]]} for profile in profiles], "timeline": timeline, "observations": observations}
+
+
+@app.get("/api/advanced/paper")
+def paper_portfolio():
+    quotes, live = _live_quotes()
+    market_value = sum(PAPER_ACCOUNT["positions"][key] * quote["price"] for key, quote in quotes.items())
+    equity = PAPER_ACCOUNT["cash"] + market_value
+    return {"source": "Yahoo Finance" if live else "QuantX simulated fallback", "cash": PAPER_ACCOUNT["cash"], "equity": equity, "return": equity / PAPER_ACCOUNT["initial_cash"] - 1, "positions": [{"asset": key, "label": ASSETS[key]["label"], "quantity": PAPER_ACCOUNT["positions"][key], "price": quote["price"], "value": PAPER_ACCOUNT["positions"][key] * quote["price"], "change": quote["change"]} for key, quote in quotes.items()], "trades": PAPER_ACCOUNT["trades"][-25:]}
+
+
+@app.post("/api/advanced/paper/order")
+def paper_order(asset: str, side: str, quantity: float):
+    if asset not in ASSETS:
+        raise HTTPException(status_code=404, detail="Asset not found")
+    if side not in {"buy", "sell"} or quantity <= 0:
+        raise HTTPException(status_code=400, detail="Use a positive quantity and buy or sell side")
+    quotes, live = _live_quotes()
+    price = quotes[asset]["price"]
+    signed_quantity = quantity if side == "buy" else -quantity
+    cost = signed_quantity * price
+    if side == "buy" and cost > PAPER_ACCOUNT["cash"]:
+        raise HTTPException(status_code=400, detail="Insufficient cash")
+    if side == "sell" and quantity > PAPER_ACCOUNT["positions"][asset]:
+        raise HTTPException(status_code=400, detail="Insufficient position")
+    PAPER_ACCOUNT["cash"] -= cost
+    PAPER_ACCOUNT["positions"][asset] += signed_quantity
+    PAPER_ACCOUNT["trades"].append({"time": datetime.utcnow().isoformat(timespec="seconds") + "Z", "asset": asset, "side": side, "quantity": quantity, "price": price})
+    portfolio = paper_portfolio()
+    portfolio["executed"] = {"asset": asset, "side": side, "quantity": quantity, "price": price}
+    portfolio["source"] = "Yahoo Finance" if live else "QuantX simulated fallback"
+    return portfolio
