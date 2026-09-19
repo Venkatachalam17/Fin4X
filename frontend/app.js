@@ -7,17 +7,17 @@ const assets = [
 ];
 
 const views = {
-    overview: ['[', 'Overview', 'Market overview'],
-    explorer: ['[', 'Asset Explorer', 'Technical intelligence'],
-    correlation: ['[', 'Correlation Lab', 'Cross-asset dependency map'],
-    strategy: ['[', 'Strategy Lab', 'Quantitative Strategy Lab & Backtest Execution'],
-    regimes: ['[', 'Market Regimes', 'Macro climate decomposition'],
-    adaptive: ['[', 'Adaptive Lab', 'Regime-aware allocation'],
-    stress: ['[', 'Stress Lab', 'Edge-case resilience testing'],
-    advanced: ['[', 'Advanced Lab', 'Monte Carlo Forecast Engine'],
-    'ml-regimes': ['[', 'ML Market Regimes', 'Unsupervised market state detection'],
-    'paper-trading': ['[', 'Paper Trading Simulator', 'Live mark-to-market execution'],
-    summary: ['[', 'Research Summary', 'Executive decision brief']
+    overview: ['◈', 'Overview', 'Market overview'],
+    explorer: ['▣', 'Asset Explorer', 'Technical intelligence'],
+    correlation: ['◫', 'Correlation Lab', 'Cross-asset dependency map'],
+    strategy: ['⚡', 'Strategy Lab', 'Quantitative Strategy Lab & Backtest Execution'],
+    regimes: ['△', 'Market Regimes', 'Macro climate decomposition'],
+    adaptive: ['◎', 'Adaptive Lab', 'Regime-aware allocation'],
+    stress: ['◇', 'Stress Lab', 'Edge-case resilience testing'],
+    advanced: ['✦', 'Advanced Lab', 'Monte Carlo Forecast Engine'],
+    'ml-regimes': ['◉', 'ML Market Regimes', 'Unsupervised market state detection'],
+    'paper-trading': ['▤', 'Paper Trading Simulator', 'Live mark-to-market execution'],
+    summary: ['✧', 'Research Summary', 'Executive decision brief']
 };
 
 const charts = {};
@@ -69,12 +69,12 @@ async function loadMLScatter() {
     const current = data.current || {};
     
     setMetrics('mlRegimeMetrics', [
-        ['Current cluster', String(current.regime || 'Unknown'), `${data.label} - ${current.date || ''}`],
+        ['Current cluster', String(current.regime || 'Unknown'), `${data.label} · ${current.date || ''}`],
         ['Latest return', pct(current.return), '5-day rolling feature'],
         ['Volatility', pct(current.volatility), '21-day annualized feature']
     ]);
     
-    $('mlRegimeTable').innerHTML = `<table class="trade-table"><thead><tr><th>Cluster</th><th>Days</th><th>Return</th><th>Volatility</th><th>Momentum</th></tr></thead><tbody>${(data.profiles || []).map(row => `<tr><td>${row.cluster} -${row.regime}</td><td>${row.days}</td><td>${pct(row.return)}</td><td>${pct(row.volatility)}</td><td>${pct(row.momentum)}</td></tr>`).join('')}</tbody></table>`;
+    $('mlRegimeTable').innerHTML = `<table class="trade-table"><thead><tr><th>Cluster</th><th>Days</th><th>Return</th><th>Volatility</th><th>Momentum</th></tr></thead><tbody>${(data.profiles || []).map(row => `<tr><td>${row.cluster} ·${row.regime}</td><td>${row.days}</td><td>${pct(row.return)}</td><td>${pct(row.volatility)}</td><td>${pct(row.momentum)}</td></tr>`).join('')}</tbody></table>`;
     
     if (typeof Plotly !== 'undefined') {
         const colors = ['#6671f2', '#ff5a3d', '#00c89b'];
@@ -112,7 +112,7 @@ function prepareAdvanced() {
     const advanced = document.querySelector('[data-view="advanced"]');
     const tabs = advanced.querySelector('.advanced-tabs');
     
-    [['ml-regimes', 'ML Market Regimes'], ['paper-trading', 'Paper Trading Simulator']].forEach(([name, label]) => {
+    [['ml-regimes', '◉ ML Market Regimes'], ['paper-trading', '▤ Paper Trading Simulator']].forEach(([name, label]) => {
         const button = document.createElement('button');
         button.className = 'advanced-tab';
         button.dataset.advancedView = name;
@@ -244,7 +244,7 @@ async function loadRegimes() {
     const rows = data.regimes || [];
     const current = data.current || {};
     $('regimeSource').textContent = data.source || '';
-    $('currentRegime').textContent = current.regime \vert{}\vert{} 'Unknown';$('currentRegimeMeta').textContent = `${current.trend || 'Unknown'} trend - ${current.volatility_state || 'Unknown'} - ${current.date || ''}`;
+    $('currentRegime').textContent = current.regime \vert{}\vert{} 'Unknown';$('currentRegimeMeta').textContent = `${current.trend || 'Unknown'} trend · ${current.volatility_state || 'Unknown'} · ${current.date || ''}`;
     $('currentRegimeDot').style.background = current.color || '#93a4bc';
     $('regimeCards').innerHTML = rows.map(x => metric(x.regime, `${x.days} days`, `${pct(x.return)} return | ${pct(x.volatility)} vol`)).join('');
     $('regimeTable').innerHTML = `<table class="trade-table regime-table"><thead><tr><th>Regime</th><th>Days</th><th>Return</th><th>Volatility</th></tr></thead><tbody>${rows.map(x => `<tr><td><span class="regime-swatch" style="background:${x.color}"></span>${x.regime}</td><td>${x.days}</td><td>${pct(x.return)}</td><td>${pct(x.volatility)}</td></tr>`).join('')}</tbody></table>`;
@@ -296,12 +296,12 @@ async function loadAdvanced() {
     const paths = Number($('pathsSize').value);
     const data = await get(`/advanced/forecast/${asset}?horizon=${horizon}&paths=${paths}`);
     $('advancedSource').textContent = data.source \vert{}\vert{} '';$('advancedChartTitle').textContent = `Monte Carlo Forecast for ${data.label} (${data.horizon} Trading Days)`;
-    setMetrics('advancedMetrics', [['Current price', money(data.starting_price)], ['Expected final price', money(data.expected_final_price)], ['10th-90th range', `${money(data.lower_final_price)} - ${money(data.upper_final_price)}`]]);
+    setMetrics('advancedMetrics', [['Current price', money(data.starting_price)], ['Expected final price', money(data.expected_final_price)], ['10th–90th range', `${money(data.lower_final_price)} – ${money(data.upper_final_price)}`]]);
     $('advancedSummary').innerHTML = `<div class="finding">${data.paths} simulated paths using real historical return behavior.</div><div class="finding">Annualized historical volatility: ${(Number(data.annualized_volatility || 0) * 100).toFixed(2)}%.</div>`;
     if (typeof Plotly !== 'undefined') {
         const traces = (data.simulations || []).map(path => ({ x: data.labels, y: path, type: 'scatter', mode: 'lines', line: { color: 'rgba(35,92,156,.28)', width: 1 }, hoverinfo: 'skip', showlegend: false }));
         traces.push({ x: data.labels, y: data.lower_band, type: 'scatter', mode: 'lines', line: { color: 'rgba(35,92,156,0)', width: 0 }, hoverinfo: 'skip', showlegend: false });
-        traces.push({ x: data.labels, y: data.upper_band, type: 'scatter', mode: 'lines', fill: 'tonexty', fillcolor: 'rgba(28,77,132,.12)', line: { color: 'rgba(35,92,156,0)', width: 0 }, name: '10-90% range', hovertemplate: 'Day %{x}<br>Range: ₹%{y:,.0f}<extra></extra>' });
+        traces.push({ x: data.labels, y: data.upper_band, type: 'scatter', mode: 'lines', fill: 'tonexty', fillcolor: 'rgba(28,77,132,.12)', line: { color: 'rgba(35,92,156,0)', width: 0 }, name: '10–90% range', hovertemplate: 'Day %{x}<br>Range: ₹%{y:,.0f}<extra></extra>' });
         traces.push({ x: data.labels, y: data.expected_path, type: 'scatter', mode: 'lines', line: { color: '#ffad16', width: 3 }, name: 'Expected Path (Mean)', hovertemplate: 'Day %{x}<br>Expected: ₹%{y:,.0f}<extra></extra>' });
         Plotly.newPlot('advancedChart', traces, { paper_bgcolor: '#10131a', plot_bgcolor: '#10131a', font: { color: '#e8ebf0' }, margin: { l: 70, r: 20, t: 10, b: 55 }, xaxis: { title: 'Future Trading Days', gridcolor: 'rgba(148,163,184,.14)', zeroline: false }, yaxis: { title: 'Simulated Price (₹)', gridcolor: 'rgba(148,163,184,.14)', tickformat: ',.0f' }, hovermode: 'x unified', legend: { orientation: 'h', x: .72, y: 1.08, font: { size: 11 } } }, { responsive: true, displaylogo: false, modeBarButtonsToRemove: ['lasso2d', 'select2d'] });
     }
@@ -327,7 +327,7 @@ async function loadMLRegimes() {
     const data = await get(`/advanced/ml-regimes?asset=${$('mlRegimeAsset').value}`);
     $('mlRegimeSource').textContent = data.source \vert{}\vert{} '';$('mlRegimeModel').textContent = data.model || '';
     const current = data.current || {};
-    setMetrics('mlRegimeMetrics', [['Current state', current.regime || 'Unknown', `${data.label} - ${current.date || ''}`], ['5-day return', pct(current.return), 'Rolling feature average'], ['Annualized volatility', pct(current.volatility), '21-day feature average']]);
+    setMetrics('mlRegimeMetrics', [['Current state', current.regime || 'Unknown', `${data.label} · ${current.date || ''}`], ['5-day return', pct(current.return), 'Rolling feature average'], ['Annualized volatility', pct(current.volatility), '21-day feature average']]);
     $('mlRegimeTable').innerHTML = `<table class="trade-table"><thead><tr><th>State</th><th>Days</th><th>Return</th><th>Volatility</th><th>Momentum</th></tr></thead><tbody>${(data.profiles || []).map(row => `<tr><td>${row.regime}</td><td>${row.days}</td><td>${pct(row.return)}</td><td>${pct(row.volatility)}</td><td>${pct(row.momentum)}</td></tr>`).join('')}</tbody></table>`;
     if (typeof Plotly !== 'undefined') {
         const colors = { Defensive: '#7a8da6', Balanced: '#f5c451', 'Risk-on': '#42d392' };
