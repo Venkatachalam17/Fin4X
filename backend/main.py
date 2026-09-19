@@ -150,3 +150,124 @@ def regime_performance(asset: str, regime: str = "bull"):
         drawdown = float((equity / equity.cummax() - 1).min()) if len(equity) else 0.0
         comparison.append({"strategy": name, "period_return": compounded, "sharpe": sharpe, "max_drawdown": drawdown, "trades": int(signal.diff().abs().reindex(selected.index).fillna(0).gt(0).sum())})
     return {"asset": asset, "regime": regime, "regime_label": regime_labels[regime], "source": "Yahoo Finance" if live else "QuantX simulated fallback", "strategies": comparison}
+
+
+@app.get("/api/stress/{asset}")
+def stress_test(asset: str, scenario: str = "market_crash", shock: float = 0.2):
+    if asset not in ASSETS:
+        raise HTTPException(status_code=404, detail="Asset not found")
+    data, live = get_data(asset)
+    shock = max(0.01, min(float(shock), 0.8))
+    returns = data["Return"].tail(520).copy()
+    stressed = returns.copy()
+    if scenario == "volatility_spike":
+        stressed = stressed * (1 + shock * 2.5)
+    elif scenario == "liquidity_shock":
+        stressed.iloc[-1] -= shock
+        stressed.iloc[-2:] -= shock * 0.35
+    elif scenario == "recovery":
+        stressed.iloc[-1] -= shock
+        recovery_days = min(30, len(stressed))
+        stressed.iloc[-recovery_days:] += shock / recovery_days
+    else:
+        stressed.iloc[-1] -= shock
+        stressed.iloc[-2:] -= shock * 0.25
+    base_equity = (1 + returns).cumprod()
+    stressed_equity = (1 + stressed).cumprod()
+    base_drawdown = base_equity / base_equity.cummax() - 1
+    stressed_drawdown = stressed_equity / stressed_equity.cummax() - 1
+    curve = [{"date": index.strftime("%Y-%m-%d"), "baseline": round(float(base_equity.loc[index]), 4), "stressed": round(float(stressed_equity.loc[index]), 4)} for index in returns.index]
+    return {
+        "asset": asset,
+        "scenario": scenario,
+        "shock": shock,
+        "source": "Yahoo Finance" if live else "QuantX simulated fallback",
+        "metrics": {
+            "baseline_return": float(base_equity.iloc[-1] - 1),
+            "stressed_return": float(stressed_equity.iloc[-1] - 1),
+            "baseline_drawdown": float(base_drawdown.min()),
+            "stressed_drawdown": float(stressed_drawdown.min()),
+            "stress_loss": float(stressed_equity.iloc[-1] / base_equity.iloc[-1] - 1),
+        },
+        "curve": curve,
+    }
+
+
+@app.get("/api/advanced/forecast/{asset}")
+def advanced_forecast(asset: str, horizon: int = 90, paths: int = 120):
+    if asset not in ASSETS:
+        raise HTTPException(status_code=404, detail="Asset not found")
+    data, live = get_data(asset)
+    horizon = max(10, min(int(horizon), 365))
+    paths = max(20, min(int(paths), 300))
+    returns = data["Return"].replace([np.inf, -np.inf], np.nan).dropna().tail(520)
+    if len(returns) < 30:
+        raise HTTPException(status_code=422, detail="Not enough price history for Monte Carlo forecast")
+    seed = sum(ord(character) for character in asset) + horizon + paths
+    rng = np.random.default_rng(seed)
+    drift = float(returns.mean())
+    volatility = float(returns.std())
+    sampled_returns = rng.normal(drift, volatility, size=(paths, horizon))
+    starting_price = float(data["Close"].iloc[-1])
+    simulated_prices = starting_price * np.exp(np.cumsum(sampled_returns, axis=1))
+    expected_path = np.concatenate([[starting_price], np.median(simulated_prices, axis=0)])
+    lower_band = np.concatenate([[starting_price], np.percentile(simulated_prices, 10, axis=0)])
+    upper_band = np.concatenate([[starting_price], np.percentile(simulated_prices, 90, axis=0)])
+    labels = list(range(horizon + 1))
+    return {
+        "asset": asset,
+        "label": ASSETS[asset]["label"],
+        "source": "Yahoo Finance" if live else "QuantX simulated fallback",
+        "live": live,
+        "starting_price": starting_price,
+        "horizon": horizon,
+        "paths": paths,
+        "annualized_volatility": float(volatility * np.sqrt(252)),
+        "expected_final_price": float(expected_path[-1]),
+        "lower_final_price": float(lower_band[-1]),
+        "upper_final_price": float(upper_band[-1]),
+        "labels": labels,
+        "simulations": simulated_prices.round(2).tolist(),
+        "expected_path": expected_path.round(2).tolist(),
+        "lower_band": lower_band.round(2).tolist(),
+        "upper_band": upper_band.round(2).tolist(),
+    }
+
+
+@app.get("/api/advanced/optimizer")
+def advanced_optimizer(risk_free_rate: float = 0.05, iterations: int = 2000):
+    streams = {}
+    live = True
+    for key in ASSETS:
+        data, is_live = get_data(key)
+        streams[key] = data["Return"]
+        live = live and is_live
+    returns = pd.DataFrame(streams).dropna().tail(520)
+    annual_returns = returns.mean() * 252
+    covariance = returns.cov() * 252
+    rng = np.random.default_rng(42 + int(iterations))
+    weights = rng.dirichlet(np.ones(len(ASSETS)), size=max(100, min(iterations, 10000)))
+    expected = weights @ annual_returns.to_numpy()
+    volatility = np.sqrt(np.einsum("ij,jk,ik->i", weights, covariance.to_numpy(), weights))
+    sharpe = (expected - risk_free_rate) / np.where(volatility == 0, 1, volatility)
+    best = int(np.argmax(sharpe))
+    selected = weights[best]
+    return {"source": "Yahoo Finance" if live else "QuantX simulated fallback", "assets": [ASSETS[key]["label"] for key in ASSETS], "weights": (selected * 100).round(2).tolist(), "expected_return": float(expected[best]), "volatility": float(volatility[best]), "sharpe": float(sharpe[best]), "risk_free_rate": risk_free_rate, "iterations": iterations}
+
+
+@app.get("/api/advanced/risk")
+def advanced_risk(confidence: float = 0.95, days: int = 1):
+    streams = []
+    live = True
+    for key in ASSETS:
+        data, is_live = get_data(key)
+        streams.append(data["Return"])
+        live = live and is_live
+    returns = pd.concat(streams, axis=1).dropna().mean(axis=1).tail(520)
+    confidence = max(0.9, min(float(confidence), 0.999))
+    scaled = returns * np.sqrt(max(1, int(days)))
+    cutoff = float(np.quantile(scaled, 1 - confidence))
+    tail = scaled[scaled <= cutoff]
+    cvar = float(tail.mean()) if len(tail) else cutoff
+    cutoff_99 = float(np.quantile(scaled, 0.01))
+    return {"source": "Yahoo Finance" if live else "QuantX simulated fallback", "confidence": confidence, "days": days, "var_95": float(np.quantile(scaled, 0.05)), "var_99": cutoff_99, "cvar": cvar, "distribution": scaled.round(6).tolist()}
