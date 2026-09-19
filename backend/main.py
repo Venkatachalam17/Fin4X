@@ -23,6 +23,7 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, 
 
 class BacktestRequest(BaseModel):
     asset: str = "gold"
+    period: str = Field("2y", pattern="^(1y|2y|5y)$")
     initial_capital: float = Field(10000, gt=0)
     position_size: float = Field(1.0, gt=0, le=1)
     transaction_cost: float = Field(0.001, ge=0, le=0.1)
@@ -31,9 +32,9 @@ class BacktestRequest(BaseModel):
     slow_window: int = Field(200, ge=30, le=200)
 
 
-def get_data(asset: str):
+def get_data(asset: str, period: str = "2y"):
     try:
-        raw, live = fetch_prices(asset)
+        raw, live = fetch_prices(asset, period)
         return calculate_indicators(raw), live
     except Exception as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
@@ -64,7 +65,7 @@ def asset(asset: str, period: str = "2y"):
 def backtest(request: BacktestRequest):
     if request.asset not in ASSETS:
         raise HTTPException(status_code=400, detail="Asset not found")
-    data, live = get_data(request.asset)
+    data, live = get_data(request.asset, request.period)
     response = run_backtest(data, request.initial_capital, request.position_size, request.transaction_cost, strategy=request.strategy, fast_window=request.fast_window, slow_window=request.slow_window)
     response["asset"] = request.asset
     response["source"] = "Yahoo Finance" if live else "QuantX simulated fallback"
@@ -72,7 +73,8 @@ def backtest(request: BacktestRequest):
 
 
 @app.get("/api/correlation")
-def correlation():
+def correlation(window: int = 60):
+    window = max(20, min(int(window), 252))
     streams = {}
     live = True
     for key in ASSETS:
@@ -80,7 +82,21 @@ def correlation():
         streams[key] = data["Return"]
         live = live and is_live
     frame = __import__("pandas").DataFrame(streams).dropna()
-    return {"assets": list(ASSETS.keys()), "labels": [ASSETS[key]["label"] for key in ASSETS], "matrix": frame.corr().round(3).values.tolist(), "source": "Yahoo Finance" if live else "QuantX simulated fallback"}
+    labels = [ASSETS[key]["label"] for key in ASSETS]
+    pair_columns = {}
+    for left_index, left in enumerate(ASSETS):
+        for right in list(ASSETS)[left_index + 1:]:
+            pair_columns[f"{ASSETS[left]['label']} / {ASSETS[right]['label']}"] = frame[left].rolling(window).corr(frame[right])
+    rolling = __import__("pandas").DataFrame(pair_columns).dropna().tail(520)
+    return {
+        "assets": list(ASSETS.keys()),
+        "labels": labels,
+        "matrix": frame.corr().round(3).values.tolist(),
+        "rolling_window": window,
+        "rolling_labels": [index.strftime("%Y-%m-%d") for index in rolling.index],
+        "rolling_series": {key: values.round(3).tolist() for key, values in rolling.items()},
+        "source": "Yahoo Finance" if live else "QuantX simulated fallback",
+    }
 
 
 @app.get("/api/regimes/{asset}")
@@ -316,7 +332,7 @@ def advanced_ml_regimes(asset: str = "bitcoin"):
     profiles = []
     for index in range(3):
         sample = frame.iloc[labels == index]
-        profiles.append({"cluster": index, "days": int(len(sample)), "return": float(sample["return"].mean()), "volatility": float(sample["volatility"].mean()), "momentum": float(sample["momentum"].mean())})
+        profiles.append({"cluster": index, "days": int(len(sample)), "return": float(sample["return"].mean()) if len(sample) else 0.0, "volatility": float(sample["volatility"].mean()) if len(sample) else 0.0, "momentum": float(sample["momentum"].mean()) if len(sample) else 0.0})
     order = sorted(range(3), key=lambda index: profiles[index]["return"])
     names = ["Defensive", "Balanced", "Risk-on"]
     labels_by_cluster = {cluster: names[position] for position, cluster in enumerate(order)}

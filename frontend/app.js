@@ -15,8 +15,6 @@ const views = {
     adaptive: ['◎', 'Adaptive Lab', 'Regime-aware allocation'],
     stress: ['◇', 'Stress Lab', 'Edge-case resilience testing'],
     advanced: ['✦', 'Advanced Lab', 'Monte Carlo Forecast Engine'],
-    'ml-regimes': ['◉', 'ML Market Regimes', 'Unsupervised market state detection'],
-    'paper-trading': ['▤', 'Paper Trading Simulator', 'Live mark-to-market execution'],
     summary: ['✧', 'Research Summary', 'Executive decision brief']
 };
 
@@ -163,6 +161,25 @@ function lineChart(name, id, labels, datasets, options = {}) {
     });
 }
 
+function prepareStrategyUI() {
+    const controls = document.querySelector('.strategy-controls');
+    if (!controls || $('strategyPeriod')) return;
+    controls.querySelector('#strategyAsset').closest('label').insertAdjacentHTML('afterend', '<label>Backtest period<select id="strategyPeriod"><option value="1y">1 year</option><option value="2y" selected>2 years</option><option value="5y">5 years</option></select></label>');
+    controls.querySelector('#cost').closest('label').insertAdjacentHTML('beforebegin', '<label>Position sizing<output id="positionOutput">100%</output><input id="position" type="range" min="10" max="100" step="5" value="100" /></label>');
+    const results = document.querySelector('.strategy-results');
+    const equityPanel = results?.querySelector('.chart-panel');
+    if (equityPanel) {
+        const riskPanel = document.createElement('div');
+        riskPanel.className = 'panel chart-panel strategy-risk-panel';
+        riskPanel.innerHTML = '<div class="panel-heading"><h2>Return and Risk Profile</h2><span class="status">Daily return / 21D volatility / drawdown</span></div><div class="chart-wrap strategy-risk-chart-wrap"><canvas id="strategyRiskChart"></canvas></div>';
+        equityPanel.insertAdjacentElement('afterend', riskPanel);
+    }
+    const disclaimer = document.createElement('footer');
+    disclaimer.className = 'research-disclaimer';
+    disclaimer.textContent = 'Research use only. Historical analysis and simulated backtests do not guarantee future performance.';
+    document.querySelector('.main-content')?.append(disclaimer);
+}
+
 async function loadOverview() {
     const data = await get('/assets');
     const cards = data.assets || [];
@@ -179,7 +196,14 @@ async function loadExplorer() {
     const data = await get(`/assets/${$('assetSelect').value}?period=${$('assetPeriod').value}`);
     const s = data.series || [];
     const sum = data.summary || {};
-    $('assetMetrics').innerHTML = [metric('Price', money(sum.price)), metric('Daily', pct(sum.daily_change)), metric('Sharpe', Number(sum.sharpe || 0).toFixed(2)), metric('Max drawdown', pct(sum.max_drawdown))].join('');
+    $('assetMetrics').innerHTML = [
+        metric('Price', money(sum.price)),
+        metric('Daily return', pct(sum.daily_change)),
+        metric('Cumulative return', pct(sum.cumulative_return)),
+        metric('21D rolling return', pct(sum.rolling_return_21d)),
+        metric('Annualized volatility', pct(sum.annual_volatility)),
+        metric('Sharpe / drawdown', `${Number(sum.sharpe || 0).toFixed(2)} / ${pct(sum.max_drawdown)}`)
+    ].join('');
     const last = s[s.length - 1] || {};
     const signals = [
         ['50 EMA', last.close > last.ema50 ? 'Bullish' : 'Below average', last.close > last.ema50 ? 78 : 35],
@@ -213,6 +237,18 @@ async function loadCorrelation() {
         yaxis: { title: 'Ticker', autorange: 'reversed', gridcolor: '#252b36' },
         hovermode: 'closest'
     }, { responsive: true, displaylogo: false, modeBarButtonsToRemove: ['lasso2d', 'select2d'] });
+    const rollingSeries = Object.entries(data.rolling_series || {}).map(([name, values], index) => ({
+        x: data.rolling_labels || [], y: values, type: 'scatter', mode: 'lines', name,
+        line: { color: ['#7f8cff', '#ff5a3d', '#00d5a0'][index], width: 2 },
+        hovertemplate: `${name}<br>%{x}<br>Correlation: %{y:.3f}<extra></extra>`
+    }));
+    Plotly.newPlot('rollingCorrelationChart', rollingSeries, {
+        paper_bgcolor: '#10131a', plot_bgcolor: '#10131a', font: { color: '#e8ebf0' },
+        margin: { l: 50, r: 20, t: 20, b: 55 }, hovermode: 'x unified',
+        xaxis: { gridcolor: '#252b36', nticks: 7 },
+        yaxis: { title: 'Correlation', range: [-1, 1], gridcolor: '#252b36', zerolinecolor: '#566174' },
+        legend: { orientation: 'h', y: 1.08 }
+    }, { responsive: true, displaylogo: false, modeBarButtonsToRemove: ['lasso2d', 'select2d'] });
 }
 
 function setMetrics(id, items) { $(id).innerHTML = items.map(x => metric(x[0], x[1], x[2] || '')).join(''); }
@@ -228,13 +264,16 @@ async function runBacktest(asset = $('backtestAsset').value) {
 }
 
 async function loadStrategy() {
-    const body = { asset: $('strategyAsset').value, initial_capital: Number($('capital').value) || 140000, position_size: 1, transaction_cost: (Number($('cost').value) || 0) / 100, strategy:$('strategySelect').value, fast_window: Number($('fastWindow').value), slow_window: Number($('slowWindow').value) };
+    const body = { asset: $('strategyAsset').value, period: $('strategyPeriod').value, initial_capital: Number($('capital').value) || 140000, position_size: (Number($('position').value) || 100) / 100, transaction_cost: (Number($('cost').value) || 0) / 100, strategy:$('strategySelect').value, fast_window: Number($('fastWindow').value), slow_window: Number($('slowWindow').value) };
     const response = await fetch(API + '/backtest', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const data = await response.json();
     const m = data.metrics || {};
     $('strategySource').textContent = data.source || '';
-    setMetrics('strategyMetrics', [['Strategy Return', pct(m.total_return)], ['Benchmark Return', pct(m.benchmark_return)], ['Sharpe Ratio', Number(m.sharpe || 0).toFixed(2)], ['Total Trades Executed', String(m.total_trades || 0)]]);
-    lineChart('strategy', 'strategyChart', (data.curve || []).map(x => x.date), [{ label: 'Strategy (EMA Trend)', data: (data.curve || []).map(x => x.strategy), borderColor: '#7f8cff', pointRadius: 0, borderWidth: 1.5, tension: .15 }, { label: 'Buy & Hold Benchmark', data: (data.curve || []).map(x => x.benchmark), borderColor: '#ff5a3d', pointRadius: 0, borderWidth: 1.5, tension: .15 }]);
+    const strategyName = $('strategySelect').selectedOptions[0].textContent;
+    setMetrics('strategyMetrics', [['Strategy Return', pct(m.total_return)], ['Benchmark Return', pct(m.benchmark_return)], ['Strategy Sharpe', Number(m.sharpe || 0).toFixed(2)], ['Benchmark Sharpe', Number(m.benchmark_sharpe || 0).toFixed(2)], ['Strategy Volatility', pct(m.annualized_volatility)], ['Benchmark Volatility', pct(m.benchmark_annualized_volatility)], ['Strategy Drawdown', pct(m.max_drawdown)], ['Benchmark Drawdown', pct(m.benchmark_max_drawdown)], ['Win Rate', pct(m.win_rate)]]);
+    const curve = data.curve || [];
+    lineChart('strategy', 'strategyChart', curve.map(x => x.date), [{ label: strategyName, data: curve.map(x => x.strategy), borderColor: '#7f8cff', pointRadius: 0, borderWidth: 1.5, tension: .15 }, { label: 'Buy & Hold Benchmark', data: curve.map(x => x.benchmark), borderColor: '#ff5a3d', pointRadius: 0, borderWidth: 1.5, tension: .15 }, { label: 'Buy signal', data: curve.map(x => x.buy ? x.strategy : null), borderColor: '#00d5a0', backgroundColor: '#00d5a0', pointRadius: 5, pointHoverRadius: 6, showLine: false }, { label: 'Sell signal', data: curve.map(x => x.sell ? x.strategy : null), borderColor: '#ff5a3d', backgroundColor: '#ff5a3d', pointRadius: 5, pointHoverRadius: 6, showLine: false }]);
+    lineChart('strategyRisk', 'strategyRiskChart', curve.map(x => x.date), [{ label: 'Daily return', data: curve.map(x => Number(x.return || 0) * 100), borderColor: '#00d5a0', pointRadius: 0, borderWidth: 1.2 }, { label: '21D volatility', data: curve.map(x => Number(x.volatility || 0) * 100), borderColor: '#f5c451', pointRadius: 0, borderWidth: 1.2 }, { label: 'Drawdown', data: curve.map(x => Number(x.drawdown || 0) * 100), borderColor: '#ff5a3d', pointRadius: 0, borderWidth: 1.2 }], { scales: { y: { ticks: { callback: value => `${value}%` } } } });
     $('tradeLog').innerHTML = `<table class="trade-table"><thead><tr><th>Date</th><th>Action</th><th>Execution Price (₹)</th><th>Portfolio Valuation (₹)</th></tr></thead><tbody>${(data.trades || []).slice(-20).reverse().map(row => `<tr><td>${row.date}</td><td>${row.action}</td><td>${Number(row.execution_price).toLocaleString()}</td><td>${Number(row.portfolio_value).toLocaleString()}</td></tr>`).join('')}</tbody></table>`;
 }
 
@@ -388,6 +427,9 @@ async function init() {
     $('riskFreeSize').addEventListener('change', loadOptimizer);$('optimizerIterations').addEventListener('change', loadOptimizer);
     $('fastWindow').addEventListener('input', event =>$('fastOutput').value = event.target.value);
     $('slowWindow').addEventListener('input', event =>$('slowOutput').value = event.target.value);
+    prepareStrategyUI();
+    $('position').addEventListener('input', event => $('positionOutput').value = `${event.target.value}%`);
+    $('strategyPeriod').addEventListener('change', loadStrategy);
     $('cost').addEventListener('input', event =>$('costOutput').value = `${Number(event.target.value).toFixed(2)}%`);
     $('shockSize').addEventListener('input', event =>$('shockOutput').value = `${event.target.value}%`);
     $('horizonSize').addEventListener('input', event =>$('horizonOutput').value = `${event.target.value} trading days`);
