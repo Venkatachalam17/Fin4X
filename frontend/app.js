@@ -20,9 +20,10 @@ const views = {
 
 const charts = {};
 const $ = id => document.getElementById(id);
+const plotTheme = { paper: '#263746', plot: '#263746', text: '#e8eef5', grid: 'rgba(210,226,240,.16)' };
 
 if (typeof Chart !== 'undefined') {
-    Chart.defaults.color = '#8d95a5';
+    Chart.defaults.color = '#d0dce7';
     Chart.defaults.font.family = 'IBM Plex Sans, Segoe UI, sans-serif';
 }
 
@@ -89,10 +90,10 @@ async function loadMLScatter() {
                 hovertemplate: 'Date: %{customdata}<br>Return: %{x:.2%}<br>Volatility: %{y:.2f}<extra>Cluster ' + cluster + '</extra>'
             };
         }), {
-            title: { text: `KMeans Market Regimes for ${data.label}`, font: { size: 14, color: '#e8ebf0' } },
-            paper_bgcolor: '#10131a',
-            plot_bgcolor: '#10131a',
-            font: { color: '#e8ebf0' },
+            title: { text: `KMeans Market Regimes for ${data.label}`, font: { size: 14, color: plotTheme.text } },
+            paper_bgcolor: plotTheme.paper,
+            plot_bgcolor: plotTheme.plot,
+            font: { color: plotTheme.text },
             margin: { l: 65, r: 20, t: 55, b: 55 },
             xaxis: { title: 'Return', tickformat: '.2%', gridcolor: 'rgba(148,163,184,.15)' },
             yaxis: { title: 'Volatility', tickformat: '.1f', gridcolor: 'rgba(148,163,184,.15)' },
@@ -119,7 +120,10 @@ function prepareAdvanced() {
             document.querySelectorAll('[data-advanced-view]').forEach(item => item.classList.toggle('active', item === button));
             document.querySelectorAll('[data-advanced-panel]').forEach(panel => panel.classList.toggle('active', panel.dataset.advancedPanel === name));
             if (name === 'ml-regimes') loadMLScatter();
-            if (name === 'paper-trading') loadPaperPortfolio();
+            if (name === 'paper-trading') {
+                bindPaperTradingControls();
+                loadPaperPortfolio();
+            }
         });
         tabs.append(button);
         const panel = document.querySelector(`[data-view="${name}"]`);
@@ -127,6 +131,66 @@ function prepareAdvanced() {
         panel.classList.add('advanced-panel');
         panel.dataset.advancedPanel = name;
         advanced.append(panel);
+        if (name === 'paper-trading') bindPaperTradingControls();
+    });
+}
+
+function bindPaperTradingControls() {
+    const orderButton = $('paperOrder');
+    const refreshButton = $('paperRefresh');
+    if (orderButton && !orderButton.dataset.bound) {
+        orderButton.onclick = () => placePaperOrder().catch(error => $('paperMessage').innerHTML = `<div class="finding">${error.message}</div>`);
+        orderButton.dataset.bound = 'true';
+    }
+    if (refreshButton && !refreshButton.dataset.bound) {
+        refreshButton.onclick = () => loadPaperPortfolio();
+        refreshButton.dataset.bound = 'true';
+    }
+}
+
+function assistantReply(question) {
+    const text = question.toLowerCase();
+    if (text.includes('summar')) return 'The dashboard combines multi-asset performance, technical indicators, rolling correlations, regime analysis, and strategy backtests. Start with the Asset Explorer, then test the strategy under more than one period.';
+    if (text.includes('risk') || text.includes('backtest')) return 'Backtests are historical simulations, not forecasts. Check drawdown, volatility, Sharpe ratio, transaction costs, position sizing, and benchmark performance before drawing a conclusion.';
+    if (text.includes('next') || text.includes('investigat')) return 'A useful next step is to compare the same strategy across Bull, Bear, High Volatility, and Low Volatility regimes, then inspect whether the result survives different periods.';
+    if (text.includes('correlation')) return 'Use the Correlation Lab to compare the static matrix with rolling relationships. A changing correlation can affect diversification and portfolio risk.';
+    return 'I can help with asset behaviour, correlations, market regimes, backtest interpretation, and research workflow. Try one of the suggested prompts below.';
+}
+
+function addAssistantMessage(text, type) {
+    const message = document.createElement('div');
+    message.className = `assistant-message assistant-${type}`;
+    message.textContent = text;
+    $('assistantMessages').append(message);
+    $('assistantMessages').scrollTop = $('assistantMessages').scrollHeight;
+}
+
+function setupAssistant() {
+    const launcher = $('assistantLauncher');
+    const panel = $('assistantPanel');
+    const close = $('assistantClose');
+    const form = $('assistantForm');
+    const input = $('assistantInput');
+    const toggle = open => {
+        panel.classList.toggle('open', open);
+        panel.setAttribute('aria-hidden', String(!open));
+        launcher.setAttribute('aria-expanded', String(open));
+        if (open) input.focus();
+    };
+    launcher.addEventListener('click', () => toggle(!panel.classList.contains('open')));
+    close.addEventListener('click', () => toggle(false));
+    document.querySelectorAll('[data-assistant-prompt]').forEach(button => button.addEventListener('click', () => {
+        const question = button.dataset.assistantPrompt;
+        addAssistantMessage(question, 'user');
+        window.setTimeout(() => addAssistantMessage(assistantReply(question), 'bot'), 180);
+    }));
+    form.addEventListener('submit', event => {
+        event.preventDefault();
+        const question = input.value.trim();
+        if (!question) return;
+        addAssistantMessage(question, 'user');
+        input.value = '';
+        window.setTimeout(() => addAssistantMessage(assistantReply(question), 'bot'), 180);
     });
 }
 
@@ -149,12 +213,12 @@ function lineChart(name, id, labels, datasets, options = {}) {
             interaction: { mode: 'index', intersect: false },
             animation: { duration: 350 },
             plugins: {
-                legend: { labels: { color: '#cbd2de' } },
-                tooltip: { backgroundColor: '#171b23', borderColor: '#343b49', borderWidth: 1 }
+                legend: { labels: { color: '#dce6ef' } },
+                tooltip: { backgroundColor: '#ffffff', borderColor: '#cbd8e7', borderWidth: 1, titleColor: '#17324f', bodyColor: '#425a75' }
             },
             scales: {
-                x: { grid: { color: 'rgba(122,133,151,.12)' }, ticks: { maxTicksLimit: 8, maxRotation: 0, color: '#8d95a5' } },
-                y: { grid: { color: 'rgba(122,133,151,.16)' }, ticks: { color: '#8d95a5' } }
+                x: { grid: { color: 'rgba(210,226,240,.14)' }, ticks: { maxTicksLimit: 8, maxRotation: 0, color: '#c3d2df' } },
+                y: { grid: { color: 'rgba(210,226,240,.16)' }, ticks: { color: '#c3d2df' } }
             },
             ...options
         }
@@ -212,7 +276,7 @@ async function loadExplorer() {
         ['Drawdown', pct(last.drawdown), Math.max(8, 100 + Number(last.drawdown || 0) * 180)]
     ];
     $('signals').innerHTML = signals.map(x => `<div class="signal"><div class="signal-top"><span>${x[0]}</span><span>${x[1]}</span></div><div class="signal-bar"><i style="width:${x[2]}%"></i></div></div>`).join('');
-    lineChart('asset', 'assetChart', s.map(x => x.date), [['Close', 'close', '#e8ebf0'], ['SMA50', 'sma50', '#f5c451'], ['EMA50', 'ema50', '#7f8cff'], ['EMA200', 'ema200', '#00d5a0']].map(x => ({ label: x[0], data: s.map(row => row[x[1]]), borderColor: x[2], pointRadius: 0, borderWidth: x[0] === 'Close' ? 2 : 1.4, tension: .18 })));
+    lineChart('asset', 'assetChart', s.map(x => x.date), [['Close', 'close', '#173d5e'], ['SMA50', 'sma50', '#d68b2a'], ['EMA50', 'ema50', '#4969b2'], ['EMA200', 'ema200', '#168b8a']].map(x => ({ label: x[0], data: s.map(row => row[x[1]]), borderColor: x[2], pointRadius: 0, borderWidth: x[0] === 'Close' ? 2 : 1.4, tension: .18 })));
 }
 
 async function loadCorrelation() {
@@ -229,9 +293,9 @@ async function loadCorrelation() {
         texttemplate: '%{text}',
         textfont: { color: '#142033', size: 11 },
         showscale: true,
-        colorbar: { title: 'Correlation', tickvals: [-1, -.5, 0, .5, 1], ticktext: ['-1', '-0.5', '0', '0.5', '1'], titlefont: { color: '#e8ebf0' }, tickfont: { color: '#e8ebf0' } }
+        colorbar: { title: 'Correlation', tickvals: [-1, -.5, 0, .5, 1], ticktext: ['-1', '-0.5', '0', '0.5', '1'], titlefont: { color: plotTheme.text }, tickfont: { color: plotTheme.text } }
     }], {
-        paper_bgcolor: '#10131a', plot_bgcolor: '#10131a', font: { color: '#e8ebf0' },
+        paper_bgcolor: '#f3f5f7', plot_bgcolor: '#f3f5f7', font: { color: '#29415e' },
         margin: { l: 100, r: 80, t: 20, b: 85 },
         xaxis: { title: 'Ticker', gridcolor: '#252b36' },
         yaxis: { title: 'Ticker', autorange: 'reversed', gridcolor: '#252b36' },
@@ -243,7 +307,7 @@ async function loadCorrelation() {
         hovertemplate: `${name}<br>%{x}<br>Correlation: %{y:.3f}<extra></extra>`
     }));
     Plotly.newPlot('rollingCorrelationChart', rollingSeries, {
-        paper_bgcolor: '#10131a', plot_bgcolor: '#10131a', font: { color: '#e8ebf0' },
+        paper_bgcolor: '#f3f5f7', plot_bgcolor: '#f3f5f7', font: { color: '#29415e' },
         margin: { l: 50, r: 20, t: 20, b: 55 }, hovermode: 'x unified',
         xaxis: { gridcolor: '#252b36', nticks: 7 },
         yaxis: { title: 'Correlation', range: [-1, 1], gridcolor: '#252b36', zerolinecolor: '#566174' },
@@ -274,7 +338,7 @@ async function loadStrategy() {
     const curve = data.curve || [];
     lineChart('strategy', 'strategyChart', curve.map(x => x.date), [{ label: strategyName, data: curve.map(x => x.strategy), borderColor: '#7f8cff', pointRadius: 0, borderWidth: 1.5, tension: .15 }, { label: 'Buy & Hold Benchmark', data: curve.map(x => x.benchmark), borderColor: '#ff5a3d', pointRadius: 0, borderWidth: 1.5, tension: .15 }, { label: 'Buy signal', data: curve.map(x => x.buy ? x.strategy : null), borderColor: '#00d5a0', backgroundColor: '#00d5a0', pointRadius: 5, pointHoverRadius: 6, showLine: false }, { label: 'Sell signal', data: curve.map(x => x.sell ? x.strategy : null), borderColor: '#ff5a3d', backgroundColor: '#ff5a3d', pointRadius: 5, pointHoverRadius: 6, showLine: false }]);
     lineChart('strategyRisk', 'strategyRiskChart', curve.map(x => x.date), [{ label: 'Daily return', data: curve.map(x => Number(x.return || 0) * 100), borderColor: '#00d5a0', pointRadius: 0, borderWidth: 1.2 }, { label: '21D volatility', data: curve.map(x => Number(x.volatility || 0) * 100), borderColor: '#f5c451', pointRadius: 0, borderWidth: 1.2 }, { label: 'Drawdown', data: curve.map(x => Number(x.drawdown || 0) * 100), borderColor: '#ff5a3d', pointRadius: 0, borderWidth: 1.2 }], { scales: { y: { ticks: { callback: value => `${value}%` } } } });
-    $('tradeLog').innerHTML = `<table class="trade-table"><thead><tr><th>Date</th><th>Action</th><th>Execution Price (₹)</th><th>Portfolio Valuation (₹)</th></tr></thead><tbody>${(data.trades || []).slice(-20).reverse().map(row => `<tr><td>${row.date}</td><td>${row.action}</td><td>${Number(row.execution_price).toLocaleString()}</td><td>${Number(row.portfolio_value).toLocaleString()}</td></tr>`).join('')}</tbody></table>`;
+    $('tradeLog').innerHTML = `<table class="trade-table strategy-trade-table"><thead><tr><th>Date</th><th>Action</th><th>Execution Price (₹)</th><th>Portfolio Valuation (₹)</th></tr></thead><tbody>${(data.trades || []).slice(-20).reverse().map(row => { const buy = row.action.startsWith('BUY'); return `<tr class="${buy ? 'buy-row' : 'sell-row'}"><td>${row.date}</td><td><span class="trade-badge ${buy ? 'buy-badge' : 'sell-badge'}"><span class="trade-badge-dot"></span>${row.action}</span></td><td>${Number(row.execution_price).toLocaleString()}</td><td>${Number(row.portfolio_value).toLocaleString()}</td></tr>`; }).join('')}</tbody></table>`;
 }
 
 async function loadRegimes() {
@@ -296,7 +360,7 @@ async function loadRegimes() {
             hovertemplate: 'Date: %{x}<br>Regime: %{customdata[0]}<br>Trend: %{customdata[1]}<br>Volatility: %{customdata[2]}<extra></extra>',
             showlegend: false
         }], {
-            paper_bgcolor: '#10131a', plot_bgcolor: '#10131a', margin: { l: 25, r: 20, t: 20, b: 45 },
+            paper_bgcolor: plotTheme.paper, plot_bgcolor: plotTheme.plot, font: { color: plotTheme.text }, margin: { l: 25, r: 20, t: 20, b: 45 },
             xaxis: { gridcolor: 'rgba(148,163,184,.15)', tickfont: { color: '#a8b0bf' }, nticks: 8 },
             yaxis: { visible: false, fixedrange: true }, hovermode: 'closest'
         }, { responsive: true, displaylogo: false, modeBarButtonsToRemove: ['lasso2d', 'select2d'] });
@@ -313,7 +377,7 @@ async function loadRegimePerformance() {
     const asset = $('regimeAsset').value;
     const regime = $('regimeScenario').value;
     const data = await get(`/regime-performance/${asset}?regime=${regime}`);
-    $('regimeStrategyTable').innerHTML = `<div class="panel-heading"><div><span class="eyebrow">Selected macro regime</span><h2>${data.regime_label}</h2></div><span class="status">${data.source}</span></div><table class="trade-table regime-comparison-table"><thead><tr><th>Quantitative Strategy</th><th>Period Return (%)</th><th>Sharpe Ratio</th><th>Max Drawdown (%)</th><th>Trades</th></tr></thead><tbody>${(data.strategies || []).map(row => `<tr><td>${row.strategy}</td><td>${pct(row.period_return)}</td><td>${Number(row.sharpe || 0).toFixed(2)}</td><td>${pct(row.max_drawdown)}</td><td>${row.trades}</td></tr>`).join('')}</tbody></table>`;
+    $('regimeStrategyTable').innerHTML = `<div class="panel-heading"><div><span class="eyebrow">Selected macro regime</span><h2>${data.regime_label}</h2></div><span class="status">${data.source}</span></div><table class="trade-table regime-comparison-table"><thead><tr><th>Quantitative Strategy</th><th>Period Return (%)</th><th>Sharpe Ratio</th><th>Max Drawdown (%)</th><th>Trades</th></tr></thead><tbody>${(data.strategies || []).map(row => { const returnUp = Number(row.period_return) >= 0; const sharpeUp = Number(row.sharpe) >= 1; const drawdownRisk = Number(row.max_drawdown) < -0.2; return `<tr class="${returnUp ? 'regime-positive-row' : 'regime-negative-row'}"><td class="regime-strategy-name">${row.strategy}</td><td><span class="regime-value ${returnUp ? 'value-positive' : 'value-negative'}">${pct(row.period_return)}</span></td><td><span class="regime-value ${sharpeUp ? 'value-positive' : 'value-neutral'}">${Number(row.sharpe || 0).toFixed(2)}</span></td><td><span class="regime-value ${drawdownRisk ? 'value-negative' : 'value-neutral'}">${pct(row.max_drawdown)}</span></td><td>${row.trades}</td></tr>`; }).join('')}</tbody></table>`;
 }
 
 async function loadStress() {
@@ -338,11 +402,11 @@ async function loadAdvanced() {
     setMetrics('advancedMetrics', [['Current price', money(data.starting_price)], ['Expected final price', money(data.expected_final_price)], ['10th–90th range', `${money(data.lower_final_price)} – ${money(data.upper_final_price)}`]]);
     $('advancedSummary').innerHTML = `<div class="finding">${data.paths} simulated paths using real historical return behavior.</div><div class="finding">Annualized historical volatility: ${(Number(data.annualized_volatility || 0) * 100).toFixed(2)}%.</div>`;
     if (typeof Plotly !== 'undefined') {
-        const traces = (data.simulations || []).map(path => ({ x: data.labels, y: path, type: 'scatter', mode: 'lines', line: { color: 'rgba(35,92,156,.28)', width: 1 }, hoverinfo: 'skip', showlegend: false }));
+        const traces = (data.simulations || []).map(path => ({ x: data.labels, y: path, type: 'scatter', mode: 'lines', line: { color: 'rgba(10,102,194,.24)', width: 1 }, hoverinfo: 'skip', showlegend: false }));
         traces.push({ x: data.labels, y: data.lower_band, type: 'scatter', mode: 'lines', line: { color: 'rgba(35,92,156,0)', width: 0 }, hoverinfo: 'skip', showlegend: false });
-        traces.push({ x: data.labels, y: data.upper_band, type: 'scatter', mode: 'lines', fill: 'tonexty', fillcolor: 'rgba(28,77,132,.12)', line: { color: 'rgba(35,92,156,0)', width: 0 }, name: '10–90% range', hovertemplate: 'Day %{x}<br>Range: ₹%{y:,.0f}<extra></extra>' });
+        traces.push({ x: data.labels, y: data.upper_band, type: 'scatter', mode: 'lines', fill: 'tonexty', fillcolor: 'rgba(10,102,194,.12)', line: { color: 'rgba(10,102,194,0)', width: 0 }, name: '10–90% range', hovertemplate: 'Day %{x}<br>Range: $%{y:,.0f}<extra></extra>' });
         traces.push({ x: data.labels, y: data.expected_path, type: 'scatter', mode: 'lines', line: { color: '#ffad16', width: 3 }, name: 'Expected Path (Mean)', hovertemplate: 'Day %{x}<br>Expected: ₹%{y:,.0f}<extra></extra>' });
-        Plotly.newPlot('advancedChart', traces, { paper_bgcolor: '#10131a', plot_bgcolor: '#10131a', font: { color: '#e8ebf0' }, margin: { l: 70, r: 20, t: 10, b: 55 }, xaxis: { title: 'Future Trading Days', gridcolor: 'rgba(148,163,184,.14)', zeroline: false }, yaxis: { title: 'Simulated Price (₹)', gridcolor: 'rgba(148,163,184,.14)', tickformat: ',.0f' }, hovermode: 'x unified', legend: { orientation: 'h', x: .72, y: 1.08, font: { size: 11 } } }, { responsive: true, displaylogo: false, modeBarButtonsToRemove: ['lasso2d', 'select2d'] });
+        Plotly.newPlot('advancedChart', traces, { paper_bgcolor: '#edf4fa', plot_bgcolor: '#edf4fa', font: { color: '#29415e' }, margin: { l: 70, r: 20, t: 10, b: 55 }, xaxis: { title: 'Future Trading Days', gridcolor: 'rgba(91,116,145,.18)', zeroline: false }, yaxis: { title: 'Simulated Price', gridcolor: 'rgba(91,116,145,.18)', tickformat: ',.0f' }, hovermode: 'x unified', legend: { orientation: 'h', x: .72, y: 1.08, font: { size: 11, color: '#29415e' } } }, { responsive: true, displaylogo: false, modeBarButtonsToRemove: ['lasso2d', 'select2d'] });
     }
 }
 
@@ -350,7 +414,7 @@ async function loadOptimizer() {
     const data = await get(`/advanced/optimizer?risk_free_rate=${Number($('riskFreeSize').value) / 100}&iterations=${Number($('optimizerIterations').value)}`);
     $('advancedSource').textContent = data.source || '';$('optimizerTable').innerHTML = `<table class="trade-table optimizer-table"><thead><tr><th>Asset</th><th>Optimal Weight (%)</th></tr></thead><tbody>${data.assets.map((asset, i) => `<tr><td>${asset}</td><td>${Number(data.weights[i]).toFixed(2)}%</td></tr>`).join('')}</tbody></table>`;
     if (typeof Plotly !== 'undefined') {
-        Plotly.newPlot('optimizerChart', [{ labels: data.assets, values: data.weights, type: 'pie', textinfo: 'label+percent', marker: { colors: ['#6671f2', '#f6533d', '#00c89b'] }, hole: .02, hovertemplate: '%{label}: %{value:.2f}%<extra></extra>' }], { paper_bgcolor: '#10131a', font: { color: '#e8ebf0' }, margin: { l: 20, r: 20, t: 20, b: 20 }, showlegend: true, legend: { font: { color: '#e8ebf0' } } }, { responsive: true, displaylogo: false });
+        Plotly.newPlot('optimizerChart', [{ labels: data.assets, values: data.weights, type: 'pie', textinfo: 'label+percent', marker: { colors: ['#4969b2', '#e06b4f', '#168b8a'] }, hole: .02, hovertemplate: '%{label}: %{value:.2f}%<extra></extra>' }], { paper_bgcolor: plotTheme.paper, font: { color: plotTheme.text }, margin: { l: 20, r: 20, t: 20, b: 20 }, showlegend: true, legend: { font: { color: plotTheme.text } } }, { responsive: true, displaylogo: false });
     }
 }
 
@@ -358,7 +422,7 @@ async function loadRisk() {
     const data = await get(`/advanced/risk?confidence=0.95&days=1`);
     $('riskSource').textContent = data.source || '';$('riskMetrics').innerHTML = [['1-Day VaR (95% Confidence)', pct(data.var_95)], ['1-Day VaR (99% Confidence)', pct(data.var_99)], ['Expected Shortfall / CVaR (95%)', pct(data.cvar)]].map(x => metric(x[0], x[1])).join('');
     if (typeof Plotly !== 'undefined') {
-        Plotly.newPlot('riskChart', [{ x: data.distribution, type: 'histogram', nbinsx: 45, marker: { color: '#6671f2' }, name: 'Daily returns', hovertemplate: 'Return: %{x:.2%}<br>Count: %{y}<extra></extra>' }, { x: [data.var_95, data.var_95], y: [0, 1], type: 'scatter', mode: 'lines', line: { color: '#ffad16', dash: 'dash', width: 2 }, name: '95% VaR Cutoff' }, { x: [data.var_99, data.var_99], y: [0, 1], type: 'scatter', mode: 'lines', line: { color: '#ff3e4d', dash: 'dash', width: 2 }, name: '99% VaR Cutoff' }], { paper_bgcolor: '#10131a', plot_bgcolor: '#10131a', font: { color: '#e8ebf0' }, margin: { l: 55, r: 20, t: 20, b: 50 }, bargap: .02, xaxis: { title: 'Daily return', tickformat: '.0%', gridcolor: 'rgba(148,163,184,.14)' }, yaxis: { title: 'Count', gridcolor: 'rgba(148,163,184,.14)' }, legend: { orientation: 'h', x: .6, y: 1.1 } }, { responsive: true, displaylogo: false });
+        Plotly.newPlot('riskChart', [{ x: data.distribution, type: 'histogram', nbinsx: 45, marker: { color: '#4969b2' }, name: 'Daily returns', hovertemplate: 'Return: %{x:.2%}<br>Count: %{y}<extra></extra>' }, { x: [data.var_95, data.var_95], y: [0, 1], type: 'scatter', mode: 'lines', line: { color: '#d68b2a', dash: 'dash', width: 2 }, name: '95% VaR Cutoff' }, { x: [data.var_99, data.var_99], y: [0, 1], type: 'scatter', mode: 'lines', line: { color: '#d34d55', dash: 'dash', width: 2 }, name: '99% VaR Cutoff' }], { paper_bgcolor: plotTheme.paper, plot_bgcolor: plotTheme.plot, font: { color: plotTheme.text }, margin: { l: 55, r: 20, t: 20, b: 50 }, bargap: .02, xaxis: { title: 'Daily return', tickformat: '.0%', gridcolor: plotTheme.grid }, yaxis: { title: 'Count', gridcolor: plotTheme.grid }, legend: { orientation: 'h', x: .6, y: 1.1 } }, { responsive: true, displaylogo: false });
     }
 }
 
@@ -370,7 +434,7 @@ async function loadMLRegimes() {
     $('mlRegimeTable').innerHTML = `<table class="trade-table"><thead><tr><th>State</th><th>Days</th><th>Return</th><th>Volatility</th><th>Momentum</th></tr></thead><tbody>${(data.profiles || []).map(row => `<tr><td>${row.regime}</td><td>${row.days}</td><td>${pct(row.return)}</td><td>${pct(row.volatility)}</td><td>${pct(row.momentum)}</td></tr>`).join('')}</tbody></table>`;
     if (typeof Plotly !== 'undefined') {
         const colors = { Defensive: '#7a8da6', Balanced: '#f5c451', 'Risk-on': '#42d392' };
-        Plotly.newPlot('mlRegimeChart', [{ x: (data.timeline || []).map(row => row.date), y: (data.timeline || []).map(row => row.regime), mode: 'markers', type: 'scatter', marker: { size: 8, color: (data.timeline || []).map(row => colors[row.regime] || '#93a4bc') }, text: (data.timeline || []).map(row => row.regime), hovertemplate: 'Date: %{x}<br>State: %{text}<extra></extra>', showlegend: false }], { paper_bgcolor: '#10131a', plot_bgcolor: '#10131a', font: { color: '#e8ebf0' }, margin: { l: 90, r: 20, t: 20, b: 45 }, xaxis: { gridcolor: 'rgba(148,163,184,.15)', nticks: 8 }, yaxis: { gridcolor: 'rgba(148,163,184,.15)' }, hovermode: 'closest' }, { responsive: true, displaylogo: false });
+        Plotly.newPlot('mlRegimeChart', [{ x: (data.timeline || []).map(row => row.date), y: (data.timeline || []).map(row => row.regime), mode: 'markers', type: 'scatter', marker: { size: 8, color: (data.timeline || []).map(row => colors[row.regime] || '#93a4bc') }, text: (data.timeline || []).map(row => row.regime), hovertemplate: 'Date: %{x}<br>State: %{text}<extra></extra>', showlegend: false }], { paper_bgcolor: plotTheme.paper, plot_bgcolor: plotTheme.plot, font: { color: plotTheme.text }, margin: { l: 90, r: 20, t: 20, b: 45 }, xaxis: { gridcolor: plotTheme.grid, nticks: 8 }, yaxis: { gridcolor: plotTheme.grid }, hovermode: 'closest' }, { responsive: true, displaylogo: false });
     }
 }
 
@@ -409,6 +473,8 @@ function loadStatic() {
 }
 
 async function init() {
+    document.body.classList.add('research-light-theme');
+    setupAssistant();
     nav();
     showView('overview');
     document.querySelectorAll('[data-advanced-view]').forEach(button => button.addEventListener('click', () => {
