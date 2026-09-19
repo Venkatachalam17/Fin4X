@@ -40,13 +40,19 @@ function showView(name) {
     document.querySelectorAll('.view').forEach(view => view.classList.toggle('active', view.dataset.view === name));
     document.querySelectorAll('[data-view-button]').forEach(button => button.classList.toggle('active', button.dataset.viewButton === name));
     $('sectionEyebrow').textContent = views[name][1];$('pageTitle').textContent = views[name][2];
+    
     if (name === 'ml-regimes') {
-        if ($('mlRegimeAsset'))$('mlRegimeAsset').onchange = loadMLScatter;
+        if ($('mlRegimeAsset')) {$('mlRegimeAsset').onchange = loadMLScatter;
+        }
         loadMLScatter();
     }
+    
     if (name === 'paper-trading') {
-        if ($('paperOrder')) $('paperOrder').onclick = () => placePaperOrder().catch(error =>$('paperMessage').innerHTML = `<div class="finding">${error.message}</div>`);
-        if ($('paperRefresh'))$('paperRefresh').onclick = () => loadPaperPortfolio();
+        if ($('paperOrder')) {
+            $('paperOrder').onclick = () => placePaperOrder().catch(error =>$('paperMessage').innerHTML = `<div class="finding">${error.message}</div>`);
+        }
+        if ($('paperRefresh')) {$('paperRefresh').onclick = () => loadPaperPortfolio();
+        }
         loadPaperPortfolio();
     }
 }
@@ -61,14 +67,39 @@ async function loadMLScatter() {
     const data = await get(`/advanced/ml-regimes?asset=${$('mlRegimeAsset').value}`);
     $('mlRegimeSource').textContent = data.source \vert{}\vert{} '';$('mlRegimeModel').textContent = data.model || '';
     const current = data.current || {};
-    setMetrics('mlRegimeMetrics', [['Current cluster', String(current.regime || 'Unknown'), `${data.label} · ${current.date || ''}`], ['Latest return', pct(current.return), '5-day rolling feature'], ['Volatility', pct(current.volatility), '21-day annualized feature']]);
+    
+    setMetrics('mlRegimeMetrics', [
+        ['Current cluster', String(current.regime || 'Unknown'), `${data.label} · ${current.date || ''}`],
+        ['Latest return', pct(current.return), '5-day rolling feature'],
+        ['Volatility', pct(current.volatility), '21-day annualized feature']
+    ]);
+    
     $('mlRegimeTable').innerHTML = `<table class="trade-table"><thead><tr><th>Cluster</th><th>Days</th><th>Return</th><th>Volatility</th><th>Momentum</th></tr></thead><tbody>${(data.profiles || []).map(row => `<tr><td>${row.cluster} ·${row.regime}</td><td>${row.days}</td><td>${pct(row.return)}</td><td>${pct(row.volatility)}</td><td>${pct(row.momentum)}</td></tr>`).join('')}</tbody></table>`;
+    
     if (typeof Plotly !== 'undefined') {
         const colors = ['#6671f2', '#ff5a3d', '#00c89b'];
         Plotly.newPlot('mlRegimeChart', [0, 1, 2].map(cluster => {
             const points = (data.observations || []).filter(row => row.cluster === cluster);
-            return { x: points.map(row => row.return), y: points.map(row => row.volatility), customdata: points.map(row => row.date), mode: 'markers', type: 'scatter', name: String(cluster), marker: { color: colors[cluster], size: 6, opacity: .86 }, hovertemplate: 'Date: %{customdata}<br>Return: %{x:.2%}<br>Volatility: %{y:.2f}<extra>Cluster ' + cluster + '</extra>' };
-        }), { title: { text: `KMeans Market Regimes for ${data.label}`, font: { size: 14, color: '#e8ebf0' } }, paper_bgcolor: '#10131a', plot_bgcolor: '#10131a', font: { color: '#e8ebf0' }, margin: { l: 65, r: 20, t: 55, b: 55 }, xaxis: { title: 'Return', tickformat: '.2%', gridcolor: 'rgba(148,163,184,.15)' }, yaxis: { title: 'Volatility', tickformat: '.1f', gridcolor: 'rgba(148,163,184,.15)' }, legend: { title: { text: 'Regime Cluster' } } }, { responsive: true, displaylogo: false });
+            return {
+                x: points.map(row => row.return),
+                y: points.map(row => row.volatility),
+                customdata: points.map(row => row.date),
+                mode: 'markers',
+                type: 'scatter',
+                name: String(cluster),
+                marker: { color: colors[cluster], size: 6, opacity: .86 },
+                hovertemplate: 'Date: %{customdata}<br>Return: %{x:.2%}<br>Volatility: %{y:.2f}<extra>Cluster ' + cluster + '</extra>'
+            };
+        }), {
+            title: { text: `KMeans Market Regimes for ${data.label}`, font: { size: 14, color: '#e8ebf0' } },
+            paper_bgcolor: '#10131a',
+            plot_bgcolor: '#10131a',
+            font: { color: '#e8ebf0' },
+            margin: { l: 65, r: 20, t: 55, b: 55 },
+            xaxis: { title: 'Return', tickformat: '.2%', gridcolor: 'rgba(148,163,184,.15)' },
+            yaxis: { title: 'Volatility', tickformat: '.1f', gridcolor: 'rgba(148,163,184,.15)' },
+            legend: { title: { text: 'Regime Cluster' } }
+        }, { responsive: true, displaylogo: false });
     }
 }
 
@@ -80,6 +111,7 @@ function prepareAdvanced() {
     if (document.querySelector('[data-advanced-panel="ml-regimes"]')) return;
     const advanced = document.querySelector('[data-view="advanced"]');
     const tabs = advanced.querySelector('.advanced-tabs');
+    
     [['ml-regimes', '◉ ML Market Regimes'], ['paper-trading', '▤ Paper Trading Simulator']].forEach(([name, label]) => {
         const button = document.createElement('button');
         button.className = 'advanced-tab';
@@ -107,11 +139,26 @@ function normalize(series) {
     return series.map(row => Number(row.close) / first * 100);
 }
 function destroy(name) { if (charts[name]) charts[name].destroy(); }
+
 function lineChart(name, id, labels, datasets, options = {}) {
     destroy(name);
     charts[name] = new Chart($(id), {
-        type: 'line', data: { labels, datasets }, options: {
-            responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, animation: { duration: 350 }, plugins: { legend: { labels: { color: '#cbd2de' } }, tooltip: { backgroundColor: '#171b23', borderColor: '#343b49', borderWidth: 1 } }, scales: { x: { grid: { color: 'rgba(122,133,151,.12)' }, ticks: { maxTicksLimit: 8, maxRotation: 0, color: '#8d95a5' } }, y: { grid: { color: 'rgba(122,133,151,.16)' }, ticks: { color: '#8d95a5' } } }, ...options
+        type: 'line',
+        data: { labels, datasets },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            animation: { duration: 350 },
+            plugins: {
+                legend: { labels: { color: '#cbd2de' } },
+                tooltip: { backgroundColor: '#171b23', borderColor: '#343b49', borderWidth: 1 }
+            },
+            scales: {
+                x: { grid: { color: 'rgba(122,133,151,.12)' }, ticks: { maxTicksLimit: 8, maxRotation: 0, color: '#8d95a5' } },
+                y: { grid: { color: 'rgba(122,133,151,.16)' }, ticks: { color: '#8d95a5' } }
+            },
+            ...options
         }
     });
 }
@@ -134,7 +181,12 @@ async function loadExplorer() {
     const sum = data.summary || {};
     $('assetMetrics').innerHTML = [metric('Price', money(sum.price)), metric('Daily', pct(sum.daily_change)), metric('Sharpe', Number(sum.sharpe || 0).toFixed(2)), metric('Max drawdown', pct(sum.max_drawdown))].join('');
     const last = s[s.length - 1] || {};
-    const signals = [['50 EMA', last.close > last.ema50 ? 'Bullish' : 'Below average', last.close > last.ema50 ? 78 : 35], ['200 EMA', last.close > last.ema200 ? 'Trend support' : 'Trend risk', last.close > last.ema200 ? 72 : 30], ['Volatility', `${pct(last.volatility)} annualized`, Math.min(95, Number(last.volatility || 0) * 140)], ['Drawdown', pct(last.drawdown), Math.max(8, 100 + Number(last.drawdown || 0) * 180)]];
+    const signals = [
+        ['50 EMA', last.close > last.ema50 ? 'Bullish' : 'Below average', last.close > last.ema50 ? 78 : 35],
+        ['200 EMA', last.close > last.ema200 ? 'Trend support' : 'Trend risk', last.close > last.ema200 ? 72 : 30],
+        ['Volatility', `${pct(last.volatility)} annualized`, Math.min(95, Number(last.volatility || 0) * 140)],
+        ['Drawdown', pct(last.drawdown), Math.max(8, 100 + Number(last.drawdown || 0) * 180)]
+    ];
     $('signals').innerHTML = signals.map(x => `<div class="signal"><div class="signal-top"><span>${x[0]}</span><span>${x[1]}</span></div><div class="signal-bar"><i style="width:${x[2]}%"></i></div></div>`).join('');
     lineChart('asset', 'assetChart', s.map(x => x.date), [['Close', 'close', '#e8ebf0'], ['SMA50', 'sma50', '#f5c451'], ['EMA50', 'ema50', '#7f8cff'], ['EMA200', 'ema200', '#00d5a0']].map(x => ({ label: x[0], data: s.map(row => row[x[1]]), borderColor: x[2], pointRadius: 0, borderWidth: x[0] === 'Close' ? 2 : 1.4, tension: .18 })));
 }
@@ -144,7 +196,23 @@ async function loadCorrelation() {
     $('correlationSource').textContent = data.source || '';
     const labels = data.labels || [];
     const matrix = data.matrix || [];
-    Plotly.newPlot('correlationMatrix', [{ z: matrix, x: labels, y: labels, type: 'heatmap', zmin: -1, zmax: 1, colorscale: [[0, '#063b73'], [.25, '#5ba5d8'], [.5, '#fff0e8'], [.75, '#f58f68'], [1, '#790021']], hovertemplate: 'Ticker: %{y}<br>Ticker: %{x}<br>Correlation: %{z:.6f}<extra></extra>', text: matrix.map(row => row.map(value => Number(value).toFixed(6))), texttemplate: '%{text}', textfont: { color: '#142033', size: 11 }, showscale: true, colorbar: { title: 'Correlation', tickvals: [-1, -.5, 0, .5, 1], ticktext: ['-1', '-0.5', '0', '0.5', '1'], titlefont: { color: '#e8ebf0' }, tickfont: { color: '#e8ebf0' } } }], { paper_bgcolor: '#10131a', plot_bgcolor: '#10131a', font: { color: '#e8ebf0' }, margin: { l: 100, r: 80, t: 20, b: 85 }, xaxis: { title: 'Ticker', gridcolor: '#252b36' }, yaxis: { title: 'Ticker', autorange: 'reversed', gridcolor: '#252b36' }, hovermode: 'closest' }, { responsive: true, displaylogo: false, modeBarButtonsToRemove: ['lasso2d', 'select2d'] });
+    Plotly.newPlot('correlationMatrix', [{
+        z: matrix, x: labels, y: labels, type: 'heatmap',
+        zmin: -1, zmax: 1,
+        colorscale: [[0, '#063b73'], [.25, '#5ba5d8'], [.5, '#fff0e8'], [.75, '#f58f68'], [1, '#790021']],
+        hovertemplate: 'Ticker: %{y}<br>Ticker: %{x}<br>Correlation: %{z:.6f}<extra></extra>',
+        text: matrix.map(row => row.map(value => Number(value).toFixed(6))),
+        texttemplate: '%{text}',
+        textfont: { color: '#142033', size: 11 },
+        showscale: true,
+        colorbar: { title: 'Correlation', tickvals: [-1, -.5, 0, .5, 1], ticktext: ['-1', '-0.5', '0', '0.5', '1'], titlefont: { color: '#e8ebf0' }, tickfont: { color: '#e8ebf0' } }
+    }], {
+        paper_bgcolor: '#10131a', plot_bgcolor: '#10131a', font: { color: '#e8ebf0' },
+        margin: { l: 100, r: 80, t: 20, b: 85 },
+        xaxis: { title: 'Ticker', gridcolor: '#252b36' },
+        yaxis: { title: 'Ticker', autorange: 'reversed', gridcolor: '#252b36' },
+        hovermode: 'closest'
+    }, { responsive: true, displaylogo: false, modeBarButtonsToRemove: ['lasso2d', 'select2d'] });
 }
 
 function setMetrics(id, items) { $(id).innerHTML = items.map(x => metric(x[0], x[1], x[2] || '')).join(''); }
@@ -182,11 +250,23 @@ async function loadRegimes() {
     $('regimeTable').innerHTML = `<table class="trade-table regime-table"><thead><tr><th>Regime</th><th>Days</th><th>Return</th><th>Volatility</th></tr></thead><tbody>${rows.map(x => `<tr><td><span class="regime-swatch" style="background:${x.color}"></span>${x.regime}</td><td>${x.days}</td><td>${pct(x.return)}</td><td>${pct(x.volatility)}</td></tr>`).join('')}</tbody></table>`;
     const timeline = data.timeline || [];
     if (typeof Plotly !== 'undefined') {
-        Plotly.newPlot('regimeTimeline', [{ x: timeline.map(x => x.date), y: timeline.map(x => 1), mode: 'markers', type: 'scatter', marker: { size: 10, color: timeline.map(x => x.color), symbol: 'square' }, customdata: timeline.map(x => [x.regime, x.trend, x.volatility_state]), hovertemplate: 'Date: %{x}<br>Regime: %{customdata[0]}<br>Trend: %{customdata[1]}<br>Volatility: %{customdata[2]}<extra></extra>', showlegend: false }], { paper_bgcolor: '#10131a', plot_bgcolor: '#10131a', margin: { l: 25, r: 20, t: 20, b: 45 }, xaxis: { gridcolor: 'rgba(148,163,184,.15)', tickfont: { color: '#a8b0bf' }, nticks: 8 }, yaxis: { visible: false, fixedrange: true }, hovermode: 'closest' }, { responsive: true, displaylogo: false, modeBarButtonsToRemove: ['lasso2d', 'select2d'] });
+        Plotly.newPlot('regimeTimeline', [{
+            x: timeline.map(x => x.date), y: timeline.map(x => 1), mode: 'markers', type: 'scatter',
+            marker: { size: 10, color: timeline.map(x => x.color), symbol: 'square' },
+            customdata: timeline.map(x => [x.regime, x.trend, x.volatility_state]),
+            hovertemplate: 'Date: %{x}<br>Regime: %{customdata[0]}<br>Trend: %{customdata[1]}<br>Volatility: %{customdata[2]}<extra></extra>',
+            showlegend: false
+        }], {
+            paper_bgcolor: '#10131a', plot_bgcolor: '#10131a', margin: { l: 25, r: 20, t: 20, b: 45 },
+            xaxis: { gridcolor: 'rgba(148,163,184,.15)', tickfont: { color: '#a8b0bf' }, nticks: 8 },
+            yaxis: { visible: false, fixedrange: true }, hovermode: 'closest'
+        }, { responsive: true, displaylogo: false, modeBarButtonsToRemove: ['lasso2d', 'select2d'] });
     }
     destroy('regime');
     charts.regime = new Chart($('regimeChart'), {
-        type: 'bar', data: { labels: rows.map(x => x.regime), datasets: [{ label: 'Regime return', data: rows.map(x => Number(x.return) * 100), backgroundColor: rows.map(x => x.color), borderRadius: 3 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false }, ticks: { color: '#a8b0bf' } }, y: { grid: { color: 'rgba(148,163,184,.14)' }, ticks: { color: '#a8b0bf', callback: v => `${v}%` } } } }
+        type: 'bar',
+        data: { labels: rows.map(x => x.regime), datasets: [{ label: 'Regime return', data: rows.map(x => Number(x.return) * 100), backgroundColor: rows.map(x => x.color), borderRadius: 3 }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false }, ticks: { color: '#a8b0bf' } }, y: { grid: { color: 'rgba(148,163,184,.14)' }, ticks: { color: '#a8b0bf', callback: v => `${v}%` } } } }
     });
 }
 
