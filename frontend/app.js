@@ -238,10 +238,6 @@ function prepareStrategyUI() {
         riskPanel.innerHTML = '<div class="panel-heading"><h2>Return and Risk Profile</h2><span class="status">Daily return / 21D volatility / drawdown</span></div><div class="chart-wrap strategy-risk-chart-wrap"><canvas id="strategyRiskChart"></canvas></div>';
         equityPanel.insertAdjacentElement('afterend', riskPanel);
     }
-    const disclaimer = document.createElement('footer');
-    disclaimer.className = 'research-disclaimer';
-    disclaimer.textContent = 'Research use only. Historical analysis and simulated backtests do not guarantee future performance.';
-    document.querySelector('.main-content')?.append(disclaimer);
 }
 
 async function loadOverview() {
@@ -369,7 +365,7 @@ async function loadRegimes() {
     charts.regime = new Chart($('regimeChart'), {
         type: 'bar',
         data: { labels: rows.map(x => x.regime), datasets: [{ label: 'Regime return', data: rows.map(x => Number(x.return) * 100), backgroundColor: rows.map(x => x.color), borderRadius: 3 }] },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false }, ticks: { color: '#a8b0bf' } }, y: { grid: { color: 'rgba(148,163,184,.14)' }, ticks: { color: '#a8b0bf', callback: v => `${v}%` } } } }
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false }, ticks: { color: '#29415e' } }, y: { grid: { color: 'rgba(91,116,145,.14)' }, ticks: { color: '#61748d', callback: v => `${v}%` } } } }
     });
 }
 
@@ -414,7 +410,7 @@ async function loadOptimizer() {
     const data = await get(`/advanced/optimizer?risk_free_rate=${Number($('riskFreeSize').value) / 100}&iterations=${Number($('optimizerIterations').value)}`);
     $('advancedSource').textContent = data.source || '';$('optimizerTable').innerHTML = `<table class="trade-table optimizer-table"><thead><tr><th>Asset</th><th>Optimal Weight (%)</th></tr></thead><tbody>${data.assets.map((asset, i) => `<tr><td>${asset}</td><td>${Number(data.weights[i]).toFixed(2)}%</td></tr>`).join('')}</tbody></table>`;
     if (typeof Plotly !== 'undefined') {
-        Plotly.newPlot('optimizerChart', [{ labels: data.assets, values: data.weights, type: 'pie', textinfo: 'label+percent', marker: { colors: ['#4969b2', '#e06b4f', '#168b8a'] }, hole: .02, hovertemplate: '%{label}: %{value:.2f}%<extra></extra>' }], { paper_bgcolor: plotTheme.paper, font: { color: plotTheme.text }, margin: { l: 20, r: 20, t: 20, b: 20 }, showlegend: true, legend: { font: { color: plotTheme.text } } }, { responsive: true, displaylogo: false });
+        Plotly.newPlot('optimizerChart', [{ labels: data.assets, values: data.weights, type: 'pie', textinfo: 'label+percent', marker: { colors: ['#4969b2', '#e06b4f', '#168b8a'] }, hole: .02, hovertemplate: '%{label}: %{value:.2f}%<extra></extra>' }], { paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)', font: { color: '#29415e' }, margin: { l: 20, r: 20, t: 20, b: 20 }, showlegend: true, legend: { font: { color: '#29415e' } } }, { responsive: true, displaylogo: false });
     }
 }
 
@@ -467,7 +463,7 @@ async function placePaperOrder() {
 function loadStatic() {
     setMetrics('adaptiveCards', [['Adaptive score', '81.4', 'Risk-adjusted allocation score'], ['Suggested allocation', '42 / 33 / 25', 'BTC / Gold / NVIDIA'], ['Regime adjustment', 'Bullish tilt', 'Trend exposure maintained']]);
     destroy('adaptive');
-    charts.adaptive = new Chart($('adaptiveChart'), { type: 'bar', data: { labels: ['Gold', 'Bitcoin', 'NVIDIA'], datasets: [{ label: 'Suggested weight', data: [33, 42, 25], backgroundColor: ['#f5c451', '#ff5a3d', '#00d5a0'] }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } } });
+    charts.adaptive = new Chart($('adaptiveChart'), { type: 'bar', data: { labels: ['Gold', 'Bitcoin', 'NVIDIA'], datasets: [{ label: 'Suggested weight', data: [33, 42, 25], backgroundColor: ['#f5c451', '#ff5a3d', '#00d5a0'] }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false }, ticks: { color: '#29415e' } }, y: { grid: { color: 'rgba(91,116,145,.14)' }, ticks: { color: '#61748d' } } } } });
     $('findings').innerHTML = ['Gold remains a defensive anchor while Bitcoin captures the strongest upside participation.', 'NVIDIA offers growth exposure with materially higher volatility.', 'Return correlations remain moderate, supporting diversification.', 'The trend strategy is strongest when directional persistence is high.'].map(x => `<div class="finding">${x}</div>`).join('');
     $('riskView').innerHTML = [['Risk budget', 'Moderate risk / high conviction'], ['Macro regime', 'Bullish risk-on with controlled volatility'], ['Action', 'Maintain trend exposure and rebalance on volatility expansion']].map(x => `<div class="risk-item"><strong>${x[0]}</strong>${x[1]}</div>`).join('');
 }
