@@ -233,11 +233,61 @@ function prepareStrategyUI() {
     const results = document.querySelector('.strategy-results');
     const equityPanel = results?.querySelector('.chart-panel');
     if (equityPanel) {
+        const profilePanel = document.createElement('div');
+        profilePanel.className = 'panel chart-panel strategy-profile-panel';
+        profilePanel.innerHTML = '<div class="panel-heading"><h2>Strategy Signal Quality</h2><span class="status">Live backtest profile</span></div><div class="chart-wrap strategy-profile-chart-wrap"><canvas id="strategyProfileChart"></canvas></div>';
+        equityPanel.insertAdjacentElement('afterend', profilePanel);
         const riskPanel = document.createElement('div');
         riskPanel.className = 'panel chart-panel strategy-risk-panel';
         riskPanel.innerHTML = '<div class="panel-heading"><h2>Return and Risk Profile</h2><span class="status">Daily return / 21D volatility / drawdown</span></div><div class="chart-wrap strategy-risk-chart-wrap"><canvas id="strategyRiskChart"></canvas></div>';
         equityPanel.insertAdjacentElement('afterend', riskPanel);
     }
+}
+
+function radarScore(value, minimum = 0, maximum = 100) {
+    return Math.max(minimum, Math.min(maximum, Number(value) || 0));
+}
+
+function updateStrategyProfile(strategy, metrics) {
+    destroy('strategyProfile');
+    const trendScore = strategy === 'ema' || strategy === 'sma' ? 78 : strategy === 'momentum' ? 68 : 48;
+    const momentumScore = radarScore(50 + Number(metrics.total_return || 0) * 100);
+    const riskScore = radarScore(100 - Math.abs(Number(metrics.max_drawdown || 0)) * 200);
+    const consistencyScore = radarScore(Number(metrics.win_rate || 0) * 100);
+    const benchmarkScore = radarScore(50 + (Number(metrics.total_return || 0) - Number(metrics.benchmark_return || 0)) * 200);
+    const executionScore = radarScore(100 - Number(metrics.total_trades || 0) * 1.2);
+    charts.strategyProfile = new Chart($('strategyProfileChart'), {
+        type: 'radar',
+        data: {
+            labels: ['Trend', 'Momentum', 'Risk control', 'Consistency', 'Benchmark edge', 'Execution'],
+            datasets: [{
+                label: 'Strategy profile',
+                data: [trendScore, momentumScore, riskScore, consistencyScore, benchmarkScore, executionScore],
+                borderColor: '#4969b2',
+                backgroundColor: 'rgba(73,105,178,.18)',
+                pointBackgroundColor: '#0a66c2',
+                pointBorderColor: '#ffffff',
+                pointHoverBackgroundColor: '#ffffff',
+                pointHoverBorderColor: '#0a66c2',
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                r: {
+                    min: 0,
+                    max: 100,
+                    ticks: { stepSize: 20, color: '#61748d', backdropColor: 'transparent' },
+                    grid: { color: 'rgba(91,116,145,.18)' },
+                    angleLines: { color: 'rgba(91,116,145,.22)' },
+                    pointLabels: { color: '#40566f', font: { size: 11, weight: '600' } }
+                }
+            },
+            plugins: { legend: { labels: { color: '#40566f' } } }
+        }
+    });
 }
 
 async function loadOverview() {
@@ -272,7 +322,7 @@ async function loadExplorer() {
         ['Drawdown', pct(last.drawdown), Math.max(8, 100 + Number(last.drawdown || 0) * 180)]
     ];
     $('signals').innerHTML = signals.map(x => `<div class="signal"><div class="signal-top"><span>${x[0]}</span><span>${x[1]}</span></div><div class="signal-bar"><i style="width:${x[2]}%"></i></div></div>`).join('');
-    lineChart('asset', 'assetChart', s.map(x => x.date), [['Close', 'close', '#173d5e'], ['SMA50', 'sma50', '#d68b2a'], ['EMA50', 'ema50', '#4969b2'], ['EMA200', 'ema200', '#168b8a']].map(x => ({ label: x[0], data: s.map(row => row[x[1]]), borderColor: x[2], pointRadius: 0, borderWidth: x[0] === 'Close' ? 2 : 1.4, tension: .18 })));
+    lineChart('asset', 'assetChart', s.map(x => x.date), [['Close', 'close', '#65b7ff'], ['SMA50', 'sma50', '#d68b2a'], ['EMA50', 'ema50', '#7898ff'], ['EMA200', 'ema200', '#20b8b0']].map(x => ({ label: x[0], data: s.map(row => row[x[1]]), borderColor: x[2], pointRadius: 0, borderWidth: x[0] === 'Close' ? 2.4 : 1.5, tension: .18 })));
 }
 
 async function loadCorrelation() {
@@ -330,6 +380,7 @@ async function loadStrategy() {
     const m = data.metrics || {};
     $('strategySource').textContent = data.source || '';
     const strategyName = $('strategySelect').selectedOptions[0].textContent;
+    updateStrategyProfile($('strategySelect').value, m);
     setMetrics('strategyMetrics', [['Strategy Return', pct(m.total_return)], ['Benchmark Return', pct(m.benchmark_return)], ['Strategy Sharpe', Number(m.sharpe || 0).toFixed(2)], ['Benchmark Sharpe', Number(m.benchmark_sharpe || 0).toFixed(2)], ['Strategy Volatility', pct(m.annualized_volatility)], ['Benchmark Volatility', pct(m.benchmark_annualized_volatility)], ['Strategy Drawdown', pct(m.max_drawdown)], ['Benchmark Drawdown', pct(m.benchmark_max_drawdown)], ['Win Rate', pct(m.win_rate)]]);
     const curve = data.curve || [];
     lineChart('strategy', 'strategyChart', curve.map(x => x.date), [{ label: strategyName, data: curve.map(x => x.strategy), borderColor: '#7f8cff', pointRadius: 0, borderWidth: 1.5, tension: .15 }, { label: 'Buy & Hold Benchmark', data: curve.map(x => x.benchmark), borderColor: '#ff5a3d', pointRadius: 0, borderWidth: 1.5, tension: .15 }, { label: 'Buy signal', data: curve.map(x => x.buy ? x.strategy : null), borderColor: '#00d5a0', backgroundColor: '#00d5a0', pointRadius: 5, pointHoverRadius: 6, showLine: false }, { label: 'Sell signal', data: curve.map(x => x.sell ? x.strategy : null), borderColor: '#ff5a3d', backgroundColor: '#ff5a3d', pointRadius: 5, pointHoverRadius: 6, showLine: false }]);
