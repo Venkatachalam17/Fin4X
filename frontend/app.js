@@ -65,7 +65,7 @@ async function get(path) {
 
 async function loadMLScatter() {
     const data = await get(`/advanced/ml-regimes?asset=${$('mlRegimeAsset').value}`);
-    $('mlRegimeSource').textContent = data.source \vert{}\vert{} '';$('mlRegimeModel').textContent = data.model || '';
+    $('mlRegimeSource').textContent = data.source || '';$('mlRegimeModel').textContent = data.model || '';
     const current = data.current || {};
     
     setMetrics('mlRegimeMetrics', [
@@ -218,7 +218,7 @@ async function loadCorrelation() {
 function setMetrics(id, items) { $(id).innerHTML = items.map(x => metric(x[0], x[1], x[2] || '')).join(''); }
 
 async function runBacktest(asset = $('backtestAsset').value) {
-    const body = { asset, initial_capital: Number($('capital').value) || 10000, position_size: Number($('position').value) \vert{}\vert{} 1, transaction_cost: Number($('cost').value) || 0 };
+    const body = { asset, initial_capital: Number($('capital').value) || 10000, position_size: Number($('position').value) || 1, transaction_cost: Number($('cost').value) || 0 };
     const response = await fetch(API + '/backtest', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const data = await response.json();
     const m = data.metrics || {};
@@ -228,7 +228,7 @@ async function runBacktest(asset = $('backtestAsset').value) {
 }
 
 async function loadStrategy() {
-    const body = { asset: $('strategyAsset').value, initial_capital: Number($('capital').value) || 140000, position_size: 1, transaction_cost: (Number($('cost').value) \vert{}\vert{} 0) / 100, strategy:$('strategySelect').value, fast_window: Number($('fastWindow').value), slow_window: Number($('slowWindow').value) };
+    const body = { asset: $('strategyAsset').value, initial_capital: Number($('capital').value) || 140000, position_size: 1, transaction_cost: (Number($('cost').value) || 0) / 100, strategy:$('strategySelect').value, fast_window: Number($('fastWindow').value), slow_window: Number($('slowWindow').value) };
     const response = await fetch(API + '/backtest', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const data = await response.json();
     const m = data.metrics || {};
@@ -239,12 +239,12 @@ async function loadStrategy() {
 }
 
 async function loadRegimes() {
-    const asset = $('regimeAsset')?.value \vert{}\vert{}$('assetSelect').value;
+    const asset = $('regimeAsset')?.value || $('assetSelect').value;
     const data = await get(`/regimes/${asset}`);
     const rows = data.regimes || [];
     const current = data.current || {};
     $('regimeSource').textContent = data.source || '';
-    $('currentRegime').textContent = current.regime \vert{}\vert{} 'Unknown';$('currentRegimeMeta').textContent = `${current.trend || 'Unknown'} trend · ${current.volatility_state || 'Unknown'} · ${current.date || ''}`;
+    $('currentRegime').textContent = current.regime || 'Unknown';$('currentRegimeMeta').textContent = `${current.trend || 'Unknown'} trend · ${current.volatility_state || 'Unknown'} · ${current.date || ''}`;
     $('currentRegimeDot').style.background = current.color || '#93a4bc';
     $('regimeCards').innerHTML = rows.map(x => metric(x.regime, `${x.days} days`, `${pct(x.return)} return | ${pct(x.volatility)} vol`)).join('');
     $('regimeTable').innerHTML = `<table class="trade-table regime-table"><thead><tr><th>Regime</th><th>Days</th><th>Return</th><th>Volatility</th></tr></thead><tbody>${rows.map(x => `<tr><td><span class="regime-swatch" style="background:${x.color}"></span>${x.regime}</td><td>${x.days}</td><td>${pct(x.return)}</td><td>${pct(x.volatility)}</td></tr>`).join('')}</tbody></table>`;
@@ -295,7 +295,7 @@ async function loadAdvanced() {
     const horizon = Number($('horizonSize').value);
     const paths = Number($('pathsSize').value);
     const data = await get(`/advanced/forecast/${asset}?horizon=${horizon}&paths=${paths}`);
-    $('advancedSource').textContent = data.source \vert{}\vert{} '';$('advancedChartTitle').textContent = `Monte Carlo Forecast for ${data.label} (${data.horizon} Trading Days)`;
+    $('advancedSource').textContent = data.source || '';$('advancedChartTitle').textContent = `Monte Carlo Forecast for ${data.label} (${data.horizon} Trading Days)`;
     setMetrics('advancedMetrics', [['Current price', money(data.starting_price)], ['Expected final price', money(data.expected_final_price)], ['10th–90th range', `${money(data.lower_final_price)} – ${money(data.upper_final_price)}`]]);
     $('advancedSummary').innerHTML = `<div class="finding">${data.paths} simulated paths using real historical return behavior.</div><div class="finding">Annualized historical volatility: ${(Number(data.annualized_volatility || 0) * 100).toFixed(2)}%.</div>`;
     if (typeof Plotly !== 'undefined') {
@@ -309,7 +309,7 @@ async function loadAdvanced() {
 
 async function loadOptimizer() {
     const data = await get(`/advanced/optimizer?risk_free_rate=${Number($('riskFreeSize').value) / 100}&iterations=${Number($('optimizerIterations').value)}`);
-    $('advancedSource').textContent = data.source \vert{}\vert{} '';$('optimizerTable').innerHTML = `<table class="trade-table optimizer-table"><thead><tr><th>Asset</th><th>Optimal Weight (%)</th></tr></thead><tbody>${data.assets.map((asset, i) => `<tr><td>${asset}</td><td>${Number(data.weights[i]).toFixed(2)}%</td></tr>`).join('')}</tbody></table>`;
+    $('advancedSource').textContent = data.source || '';$('optimizerTable').innerHTML = `<table class="trade-table optimizer-table"><thead><tr><th>Asset</th><th>Optimal Weight (%)</th></tr></thead><tbody>${data.assets.map((asset, i) => `<tr><td>${asset}</td><td>${Number(data.weights[i]).toFixed(2)}%</td></tr>`).join('')}</tbody></table>`;
     if (typeof Plotly !== 'undefined') {
         Plotly.newPlot('optimizerChart', [{ labels: data.assets, values: data.weights, type: 'pie', textinfo: 'label+percent', marker: { colors: ['#6671f2', '#f6533d', '#00c89b'] }, hole: .02, hovertemplate: '%{label}: %{value:.2f}%<extra></extra>' }], { paper_bgcolor: '#10131a', font: { color: '#e8ebf0' }, margin: { l: 20, r: 20, t: 20, b: 20 }, showlegend: true, legend: { font: { color: '#e8ebf0' } } }, { responsive: true, displaylogo: false });
     }
@@ -317,7 +317,7 @@ async function loadOptimizer() {
 
 async function loadRisk() {
     const data = await get(`/advanced/risk?confidence=0.95&days=1`);
-    $('riskSource').textContent = data.source \vert{}\vert{} '';$('riskMetrics').innerHTML = [['1-Day VaR (95% Confidence)', pct(data.var_95)], ['1-Day VaR (99% Confidence)', pct(data.var_99)], ['Expected Shortfall / CVaR (95%)', pct(data.cvar)]].map(x => metric(x[0], x[1])).join('');
+    $('riskSource').textContent = data.source || '';$('riskMetrics').innerHTML = [['1-Day VaR (95% Confidence)', pct(data.var_95)], ['1-Day VaR (99% Confidence)', pct(data.var_99)], ['Expected Shortfall / CVaR (95%)', pct(data.cvar)]].map(x => metric(x[0], x[1])).join('');
     if (typeof Plotly !== 'undefined') {
         Plotly.newPlot('riskChart', [{ x: data.distribution, type: 'histogram', nbinsx: 45, marker: { color: '#6671f2' }, name: 'Daily returns', hovertemplate: 'Return: %{x:.2%}<br>Count: %{y}<extra></extra>' }, { x: [data.var_95, data.var_95], y: [0, 1], type: 'scatter', mode: 'lines', line: { color: '#ffad16', dash: 'dash', width: 2 }, name: '95% VaR Cutoff' }, { x: [data.var_99, data.var_99], y: [0, 1], type: 'scatter', mode: 'lines', line: { color: '#ff3e4d', dash: 'dash', width: 2 }, name: '99% VaR Cutoff' }], { paper_bgcolor: '#10131a', plot_bgcolor: '#10131a', font: { color: '#e8ebf0' }, margin: { l: 55, r: 20, t: 20, b: 50 }, bargap: .02, xaxis: { title: 'Daily return', tickformat: '.0%', gridcolor: 'rgba(148,163,184,.14)' }, yaxis: { title: 'Count', gridcolor: 'rgba(148,163,184,.14)' }, legend: { orientation: 'h', x: .6, y: 1.1 } }, { responsive: true, displaylogo: false });
     }
@@ -325,7 +325,7 @@ async function loadRisk() {
 
 async function loadMLRegimes() {
     const data = await get(`/advanced/ml-regimes?asset=${$('mlRegimeAsset').value}`);
-    $('mlRegimeSource').textContent = data.source \vert{}\vert{} '';$('mlRegimeModel').textContent = data.model || '';
+    $('mlRegimeSource').textContent = data.source || '';$('mlRegimeModel').textContent = data.model || '';
     const current = data.current || {};
     setMetrics('mlRegimeMetrics', [['Current state', current.regime || 'Unknown', `${data.label} · ${current.date || ''}`], ['5-day return', pct(current.return), 'Rolling feature average'], ['Annualized volatility', pct(current.volatility), '21-day feature average']]);
     $('mlRegimeTable').innerHTML = `<table class="trade-table"><thead><tr><th>State</th><th>Days</th><th>Return</th><th>Volatility</th><th>Momentum</th></tr></thead><tbody>${(data.profiles || []).map(row => `<tr><td>${row.regime}</td><td>${row.days}</td><td>${pct(row.return)}</td><td>${pct(row.volatility)}</td><td>${pct(row.momentum)}</td></tr>`).join('')}</tbody></table>`;
