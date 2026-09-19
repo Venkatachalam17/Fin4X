@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import os
 from datetime import datetime
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 import numpy as np
 import pandas as pd
@@ -353,3 +356,14 @@ def paper_order(asset: str, side: str, quantity: float):
     portfolio["executed"] = {"asset": asset, "side": side, "quantity": quantity, "price": price}
     portfolio["source"] = "Yahoo Finance" if live else "QuantX simulated fallback"
     return portfolio
+
+
+# --- Serve Frontend Static Files ---
+frontend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../frontend"))
+
+if os.path.exists(frontend_dir):
+    app.mount("/static", StaticFiles(directory=frontend_dir), name="static")
+
+    @app.get("/")
+    def read_root():
+        return FileResponse(os.path.join(frontend_dir, "index.html"))
