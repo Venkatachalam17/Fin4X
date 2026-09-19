@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>QuantX | Multi-Asset Intelligence</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Space+Grotesk:wght@500;600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script defer src="app.js"></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand"><span>QUANTX</span><small>Financial Intelligence</small></div>
+        <nav id="desktopNav" class="nav-list" aria-label="Dashboard sections"></nav>
+        <div class="system-card"><span class="live-dot"></span><div><strong id="sourceStatus">Connecting</strong><small>Signal pipeline online</small></div></div>
+      </aside>
+
+      <main class="main-content">
+        <div class="mobile-nav" id="mobileNav"></div>
+        <header class="page-header"><div><span class="eyebrow" id="sectionEyebrow">Overview</span><h1 id="pageTitle">Market overview</h1></div><span id="lastUpdated" class="status">Loading...</span></header>
+
+        <section class="view active" data-view="overview">
+          <div id="overviewCards" class="metric-grid three"></div>
+          <div class="panel chart-panel performance-panel">
+            <div class="panel-heading"><div><span class="eyebrow">Performance snapshot</span><h2>Multi-asset market tape</h2></div><select id="overviewPeriod"><option value="1y">1 year</option><option value="2y" selected>2 years</option><option value="5y">5 years</option></select></div>
+            <div class="legend"><span><i class="gold"></i>Gold</span><span><i class="bitcoin"></i>Bitcoin</span><span><i class="nvidia"></i>NVIDIA</span></div><div class="chart-wrap large"><canvas id="performanceChart"></canvas></div>
+          </div>
+        </section>
+
+        <section class="view" data-view="explorer">
+          <div class="toolbar"><div><span class="eyebrow">Asset Explorer</span><h2>Technical intelligence</h2></div><div class="toolbar-actions"><select id="assetSelect"><option value="gold">Gold</option><option value="bitcoin">Bitcoin</option><option value="nvidia">NVIDIA</option></select><select id="assetPeriod"><option value="1y">1 year</option><option value="2y" selected>2 years</option><option value="5y">5 years</option></select></div></div>
+          <div id="assetMetrics" class="metric-grid four"></div>
+          <div class="two-column"><div class="panel chart-panel"><div class="panel-heading"><h2>Price and trend structure</h2></div><div class="chart-wrap"><canvas id="assetChart"></canvas></div></div><div class="panel signal-panel"><h2>Signal stack</h2><div id="signals"></div></div></div>
+        </section>
+
+        <section class="view" data-view="correlation"><span class="eyebrow">Relationship & Correlation</span><h2>Cross-asset dependency map</h2><div class="panel table-panel"><div class="panel-heading"><h2>Return correlation matrix</h2><span id="correlationSource" class="status"></span></div><div id="correlationMatrix"></div></div></section>
+
+        <section class="view" data-view="strategy"><span class="eyebrow">Strategy Lab</span><h2>Alpha engine selection</h2><div class="two-column strategy-layout"><div class="panel form-panel"><label>Strategy<select id="strategySelect"><option>50/200 EMA Trend</option><option>Buy & Hold Benchmark</option></select></label><label>Asset<select id="strategyAsset"><option value="gold">Gold</option><option value="bitcoin">Bitcoin</option><option value="nvidia">NVIDIA</option></select></label><button id="strategyRun">Scan strategy</button></div><div><div id="strategyMetrics" class="metric-grid three"></div><div class="panel chart-panel"><h2>Strategy signal quality</h2><div class="chart-wrap"><canvas id="strategyChart"></canvas></div></div></div></div></section>
+
+        <section class="view" data-view="backtest"><span class="eyebrow">Backtest Lab</span><h2>Portfolio simulation and performance</h2><div class="two-column strategy-layout"><div class="panel form-panel"><label>Asset<select id="backtestAsset"><option value="gold">Gold</option><option value="bitcoin">Bitcoin</option><option value="nvidia">NVIDIA</option></select></label><label>Initial capital<input id="capital" type="number" value="10000" min="1000" step="1000" /></label><label>Position size<select id="position"><option value="0.25">25%</option><option value="0.5">50%</option><option value="1" selected>100%</option></select></label><label>Transaction cost<input id="cost" type="number" value="0.001" min="0" max="0.05" step="0.001" /></label><button id="backtestRun">Run backtest</button></div><div><div id="backtestMetrics" class="metric-grid four"></div><div class="panel chart-panel"><h2>Equity curve vs benchmark</h2><div class="chart-wrap"><canvas id="backtestChart"></canvas></div></div></div></div></section>
+
+        <section class="view" data-view="regimes"><span class="eyebrow">Market Regimes</span><h2>Macro climate decomposition</h2><div id="regimeCards" class="metric-grid four"></div><div class="panel chart-panel"><h2>Regime return profile</h2><div class="chart-wrap"><canvas id="regimeChart"></canvas></div></div></section>
+
+        <section class="view" data-view="adaptive"><span class="eyebrow">Adaptive Lab</span><h2>Regime-aware allocation</h2><div id="adaptiveCards" class="metric-grid three"></div><div class="panel chart-panel"><h2>Dynamic allocation weights</h2><div class="chart-wrap"><canvas id="adaptiveChart"></canvas></div></div></section>
+
+        <section class="view" data-view="stress"><span class="eyebrow">Stress Lab</span><h2>Edge-case resilience testing</h2><div id="stressCards" class="metric-grid three"></div></section>
+
+        <section class="view" data-view="summary"><span class="eyebrow">Automated Research Summary</span><h2>Executive decision brief</h2><div class="two-column"><div class="panel text-panel"><h2>Key findings</h2><div id="findings"></div></div><div class="panel text-panel"><h2>Risk and regime view</h2><div id="riskView"></div></div></div></section>
+      </main>
+    </div>
+  </body>
+</html>
