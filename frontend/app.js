@@ -157,10 +157,43 @@ function assistantReply(question) {
     return 'I can help with asset behaviour, correlations, market regimes, backtest interpretation, and research workflow. Try one of the suggested prompts below.';
 }
 
+function escapeHtml(value) {
+    return String(value).replace(/[&<>'"]/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[character]));
+}
+
+function renderAssistantMarkdown(markdown) {
+    const escaped = escapeHtml(markdown).replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
+    const lines = escaped.split('\n');
+    const output = [];
+    let table = [];
+    const flushTable = () => {
+        if (!table.length) return;
+        const rows = table.filter(row => !/^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)+\|?\s*$/.test(row));
+        if (rows.length) {
+            const cells = row => row.split('|').map(cell => cell.trim()).filter(Boolean);
+            output.push(`<table class="assistant-markdown-table"><thead><tr>${cells(rows[0]).map(cell => `<th>${cell}</th>`).join('')}</tr></thead><tbody>${rows.slice(1).map(row => `<tr>${cells(row).map(cell => `<td>${cell}</td>`).join('')}</tr>`).join('')}</tbody></table>`);
+        }
+        table = [];
+    };
+    lines.forEach(line => {
+        if (line.includes('|') && line.trim().length > 1) { table.push(line); return; }
+        flushTable();
+        if (/^###\s+/.test(line)) output.push(`<h4>${line.replace(/^###\s+/, '')}</h4>`);
+        else if (/^##\s+/.test(line)) output.push(`<h3>${line.replace(/^##\s+/, '')}</h3>`);
+        else if (/^#\s+/.test(line)) output.push(`<h3>${line.replace(/^#\s+/, '')}</h3>`);
+        else if (/^\s*[-*]\s+/.test(line)) output.push(`<div class="assistant-bullet">${line.replace(/^\s*[-*]\s+/, '')}</div>`);
+        else if (/^\s*\d+\.\s+/.test(line)) output.push(`<div class="assistant-bullet">${line.replace(/^\s*\d+\.\s+/, '')}</div>`);
+        else if (line.trim()) output.push(`<p>${line}</p>`);
+    });
+    flushTable();
+    return output.join('').replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>').replace(/`([^`]+)`/g, '<code>$1</code>');
+}
+
 function addAssistantMessage(text, type) {
     const message = document.createElement('div');
     message.className = `assistant-message assistant-${type}`;
-    message.textContent = text;
+    if (type === 'bot') message.innerHTML = renderAssistantMarkdown(text);
+    else message.textContent = text;
     $('assistantMessages').append(message);
     $('assistantMessages').scrollTop = $('assistantMessages').scrollHeight;
 }
