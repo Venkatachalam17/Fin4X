@@ -5,7 +5,6 @@ from datetime import datetime
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 import numpy as np
@@ -358,12 +357,8 @@ def paper_order(asset: str, side: str, quantity: float):
     return portfolio
 
 
-# --- Serve Frontend Static Files ---
+# --- Serve Frontend Static Files & UI ---
 frontend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../frontend"))
 
 if os.path.exists(frontend_dir):
-    app.mount("/static", StaticFiles(directory=frontend_dir), name="static")
-
-    @app.get("/")
-    def read_root():
-        return FileResponse(os.path.join(frontend_dir, "index.html"))
+    app.mount("/", StaticFiles(directory=frontend_dir, html=True), name="frontend")
