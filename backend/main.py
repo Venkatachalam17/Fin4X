@@ -9,13 +9,16 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 import numpy as np
 import pandas as pd
+import httpx
 
 try:
     from .backtester import run_backtest
     from .engine import ASSETS, asset_payload, calculate_indicators, fetch_prices, serialize_series, summary
+    from .assistant_config import GROQ_API_KEY, GROQ_MODEL
 except ImportError:  # pragma: no cover - supports running as a script from backend/
     from backtester import run_backtest
     from engine import ASSETS, asset_payload, calculate_indicators, fetch_prices, serialize_series, summary
+    from assistant_config import GROQ_API_KEY, GROQ_MODEL
 
 app = FastAPI(title="QuantX Intelligence API", version="1.0.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
@@ -32,6 +35,11 @@ class BacktestRequest(BaseModel):
     slow_window: int = Field(200, ge=30, le=200)
 
 
+class AssistantRequest(BaseModel):
+    message: str = Field(..., min_length=1, max_length=2000)
+    history: list[dict[str, str]] = Field(default_factory=list, max_length=12)
+
+
 def get_data(asset: str, period: str = "2y"):
     try:
         raw, live = fetch_prices(asset, period)
@@ -43,6 +51,31 @@ def get_data(asset: str, period: str = "2y"):
 @app.get("/api/health")
 def health():
     return {"status": "ok", "service": "QuantX Intelligence API"}
+
+
+@app.post("/api/assistant")
+async def assistant(request: AssistantRequest):
+    if not GROQ_API_KEY or GROQ_API_KEY == "PASTE_YOUR_GROQ_API_KEY_HERE":
+        raise HTTPException(status_code=503, detail="Add your Groq API key in backend/assistant_config.py")
+    messages = [{
+        "role": "system",
+        "content": "You are Fin4X Quant Research Assistant. Give concise, practical explanations about financial indicators, asset behaviour, correlations, market regimes, and historical backtests. Never present historical results as guaranteed future returns."
+    }]
+    messages.extend({"role": item["role"], "content": item["content"]} for item in request.history if item.get("role") in {"user", "assistant"} and item.get("content"))
+    messages.append({"role": "user", "content": request.message})
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            response = await client.post("https://api.groq.com/openai/v1/chat/completions", headers={"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}, json={"model": GROQ_MODEL, "messages": messages, "temperature": 0.2, "max_tokens": 500})
+        if response.is_error:
+            try:
+                provider_error = response.json().get("error", {}).get("message", "Groq assistant request failed")
+            except ValueError:
+                provider_error = "Groq assistant request failed"
+            raise HTTPException(status_code=502, detail=f"Groq: {provider_error}")
+        payload = response.json()
+        return {"answer": payload["choices"][0]["message"]["content"], "model": GROQ_MODEL}
+    except httpx.HTTPError as error:
+        raise HTTPException(status_code=502, detail="Unable to reach Groq assistant") from error
 
 
 @app.get("/api/assets")

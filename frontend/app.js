@@ -171,6 +171,7 @@ function setupAssistant() {
     const close = $('assistantClose');
     const form = $('assistantForm');
     const input = $('assistantInput');
+    const history = [];
     const toggle = open => {
         panel.classList.toggle('open', open);
         panel.setAttribute('aria-hidden', String(!open));
@@ -182,7 +183,7 @@ function setupAssistant() {
     document.querySelectorAll('[data-assistant-prompt]').forEach(button => button.addEventListener('click', () => {
         const question = button.dataset.assistantPrompt;
         addAssistantMessage(question, 'user');
-        window.setTimeout(() => addAssistantMessage(assistantReply(question), 'bot'), 180);
+        askAssistant(question);
     }));
     form.addEventListener('submit', event => {
         event.preventDefault();
@@ -190,8 +191,21 @@ function setupAssistant() {
         if (!question) return;
         addAssistantMessage(question, 'user');
         input.value = '';
-        window.setTimeout(() => addAssistantMessage(assistantReply(question), 'bot'), 180);
+        askAssistant(question);
     });
+
+    async function askAssistant(question) {
+        let answer;
+        try {
+            const response = await fetch(`${API}/assistant`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: question, history }) });
+            const data = await response.json();
+            answer = response.ok ? data.answer : (data.detail || 'The assistant request was rejected.');
+        } catch (error) {
+            answer = 'The assistant service is unavailable. Check that the backend is running.';
+        }
+        history.push({ role: 'user', content: question }, { role: 'assistant', content: answer });
+        addAssistantMessage(answer, 'bot');
+    }
 }
 
 function pct(value, digits = 2) { return `${(Number(value || 0) * 100).toFixed(digits)}%`; }
