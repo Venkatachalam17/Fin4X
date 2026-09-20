@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>QuantX | Multi-Asset Intelligence</title>
+    <title>Fin4X | Multi-Asset Financial Intelligence</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Space+Grotesk:wght@500;600&display=swap" rel="stylesheet" />
@@ -15,7 +15,7 @@
   <body>
     <div class="app-shell">
       <aside class="sidebar">
-        <div class="brand"><span>QUANTX</span><small>Financial Intelligence</small></div>
+        <div class="brand" aria-label="Fin4X Financial Application"><div class="brand-lockup"><span class="brand-mark">↗</span><div><div class="brand-wordmark"><span>Fin</span><strong>4X</strong></div><small>Financial Application</small></div></div></div>
         <nav id="desktopNav" class="nav-list" aria-label="Dashboard sections"></nav>
         <div class="system-card"><span class="live-dot"></span><div><strong id="sourceStatus">Connecting</strong><small>Signal pipeline online</small></div></div>
       </aside>
@@ -34,11 +34,11 @@
 
         <section class="view" data-view="explorer">
           <div class="toolbar"><div><span class="eyebrow">Asset Explorer</span><h2>Technical intelligence</h2></div><div class="toolbar-actions"><select id="assetSelect"><option value="gold">Gold</option><option value="bitcoin">Bitcoin</option><option value="nvidia">NVIDIA</option></select><select id="assetPeriod"><option value="1y">1 year</option><option value="2y" selected>2 years</option><option value="5y">5 years</option></select></div></div>
-          <div id="assetMetrics" class="metric-grid four"></div>
+          <div id="assetMetrics" class="metric-grid six"></div>
           <div class="two-column"><div class="panel chart-panel"><div class="panel-heading"><h2>Price and trend structure</h2></div><div class="chart-wrap"><canvas id="assetChart"></canvas></div></div><div class="panel signal-panel"><h2>Signal stack</h2><div id="signals"></div></div></div>
         </section>
 
-        <section class="view" data-view="correlation"><span class="eyebrow">Relationship & Correlation</span><h2>Cross-asset dependency map</h2><div class="panel heatmap-panel"><div class="panel-heading"><h2>Static Correlation Matrix</h2><span id="correlationSource" class="status"></span></div><div id="correlationMatrix" class="plotly-chart"></div></div></section>
+        <section class="view" data-view="correlation"><span class="eyebrow">Relationship & Correlation</span><h2>Cross-asset dependency map</h2><div class="correlation-grid"><div class="panel heatmap-panel"><div class="panel-heading"><h2>Correlation Matrix</h2><span id="correlationSource" class="status"></span></div><div id="correlationMatrix" class="plotly-chart"></div></div><div class="panel rolling-correlation-panel"><div class="panel-heading"><div><h2>Rolling Correlation</h2><span class="metric-sub">60-trading-day relationship</span></div></div><div id="rollingCorrelationChart" class="plotly-chart"></div></div></div></section>
 
         <section class="view" data-view="strategy"><span class="eyebrow">Strategy Lab</span><h2>Quantitative Strategy Lab & Backtest Execution</h2><p class="view-description">Configure quantitative rules, simulate friction costs, and audit trade execution against a buy and hold benchmark.</p><div class="strategy-workspace"><div class="panel form-panel strategy-controls"><h2>Backtest Parameters</h2><label>Target Asset Universe<select id="strategyAsset"><option value="bitcoin">Bitcoin</option><option value="nvidia">NVIDIA</option><option value="gold">Gold</option></select></label><label>Quantitative Strategy Model<select id="strategySelect"><option value="ema">EMA Trend</option><option value="sma">SMA Crossover</option><option value="momentum">Momentum</option><option value="mean_reversion">Mean Reversion</option></select></label><h3>Model Hyperparameters</h3><label>Fast / Short Window (Days)<output id="fastOutput">20</output><input id="fastWindow" type="range" min="5" max="50" value="20" /></label><label>Slow / Long Window (Days)<output id="slowOutput">100</output><input id="slowWindow" type="range" min="30" max="200" value="100" /></label><h3>Execution Constraints</h3><label>Initial Capital (INR)<input id="capital" type="number" value="140000" min="1000" step="1000" /></label><label>Transaction Friction Cost (%)<output id="costOutput">0.10%</output><input id="cost" type="range" min="0" max="0.5" step="0.01" value="0.1" /></label><button id="strategyRun">↗ Run Backtest Simulation</button></div><div class="strategy-results"><div class="panel chart-panel"><div class="panel-heading"><h2>Performance Equity Curve</h2><span id="strategySource" class="status"></span></div><div class="chart-wrap strategy-chart-wrap"><canvas id="strategyChart"></canvas></div></div><div id="strategyMetrics" class="metric-grid four strategy-metrics"></div><div class="panel table-panel trade-panel"><div class="panel-heading"><h2>Trade Execution Log</h2><span class="status">Most recent executions</span></div><div id="tradeLog"></div></div></div></div></section>
 
@@ -55,6 +55,15 @@
         <section class="view" data-view="paper-trading"><div class="toolbar"><div><span class="eyebrow">Paper Trading Simulator</span><h2>Live mark-to-market execution</h2></div><span id="paperSource" class="status"></span></div><p class="view-description">Place simulated orders against current market prices. No broker credentials or real capital are used.</p><div id="paperMetrics" class="metric-grid three"></div><div class="paper-workspace"><div class="panel form-panel paper-controls"><h2>Order ticket</h2><label>Asset<select id="paperAsset"><option value="gold">Gold</option><option value="bitcoin">Bitcoin</option><option value="nvidia">NVIDIA</option></select></label><label>Side<select id="paperSide"><option value="buy">Buy</option><option value="sell">Sell</option></select></label><label>Quantity<input id="paperQuantity" type="number" value="1" min="0.0001" step="0.0001" /></label><button id="paperOrder">Place Paper Order</button><div id="paperMessage" class="advanced-summary"></div></div><div class="paper-results"><div class="panel table-panel"><div class="panel-heading"><h2>Open positions</h2><button id="paperRefresh" class="compact-button">Refresh</button></div><div id="paperPositions"></div></div><div class="panel table-panel"><div class="panel-heading"><h2>Execution history</h2><span class="status">Latest 25 fills</span></div><div id="paperTrades"></div></div></div></div></section>
 
         <section class="view" data-view="summary"><span class="eyebrow">Automated Research Summary</span><h2>Executive decision brief</h2><div class="two-column"><div class="panel text-panel"><h2>Key findings</h2><div id="findings"></div></div><div class="panel text-panel"><h2>Risk and regime view</h2><div id="riskView"></div></div></div></section>
+        <aside class="quant-assistant" aria-label="Fin4X Quantitative Research Assistant">
+          <button id="assistantLauncher" class="assistant-launcher" type="button" aria-expanded="false"><span class="assistant-spark">✦</span><span>Ask Fin4X AI</span></button>
+          <section id="assistantPanel" class="assistant-panel" aria-hidden="true">
+            <div class="assistant-header"><div><span class="eyebrow">Fin4X Intelligence</span><h2>Quant Research Assistant</h2></div><button id="assistantClose" class="assistant-close" type="button" aria-label="Close assistant">×</button></div>
+            <div id="assistantMessages" class="assistant-messages"><div class="assistant-message assistant-bot">I can help interpret the dashboard, compare assets, or suggest the next research step.</div></div>
+            <div class="assistant-prompts"><button type="button" data-assistant-prompt="Summarize the current dashboard">Summarize dashboard</button><button type="button" data-assistant-prompt="What should I investigate next?">Next research step</button><button type="button" data-assistant-prompt="Explain backtesting risk">Explain backtest risk</button></div>
+            <form id="assistantForm" class="assistant-form"><input id="assistantInput" type="text" placeholder="Ask a research question..." autocomplete="off" /><button type="submit" aria-label="Send question">↗</button></form>
+          </section>
+        </aside>
       </main>
     </div>
   </body>

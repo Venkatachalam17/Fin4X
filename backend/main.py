@@ -1,19 +1,24 @@
 from __future__ import annotations
 
+import os
 from datetime import datetime
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 import numpy as np
 import pandas as pd
+import httpx
 
 try:
     from .backtester import run_backtest
     from .engine import ASSETS, asset_payload, calculate_indicators, fetch_prices, serialize_series, summary
+    from .assistant_config import GROQ_API_KEY, GROQ_MODEL
 except ImportError:  # pragma: no cover - supports running as a script from backend/
     from backtester import run_backtest
     from engine import ASSETS, asset_payload, calculate_indicators, fetch_prices, serialize_series, summary
+    from assistant_config import GROQ_API_KEY, GROQ_MODEL
 
 app = FastAPI(title="QuantX Intelligence API", version="1.0.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
@@ -21,6 +26,7 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, 
 
 class BacktestRequest(BaseModel):
     asset: str = "gold"
+    period: str = Field("2y", pattern="^(1y|2y|5y)$")
     initial_capital: float = Field(10000, gt=0)
     position_size: float = Field(1.0, gt=0, le=1)
     transaction_cost: float = Field(0.001, ge=0, le=0.1)
@@ -29,9 +35,14 @@ class BacktestRequest(BaseModel):
     slow_window: int = Field(200, ge=30, le=200)
 
 
-def get_data(asset: str):
+class AssistantRequest(BaseModel):
+    message: str = Field(..., min_length=1, max_length=2000)
+    history: list[dict[str, str]] = Field(default_factory=list, max_length=12)
+
+
+def get_data(asset: str, period: str = "2y"):
     try:
-        raw, live = fetch_prices(asset)
+        raw, live = fetch_prices(asset, period)
         return calculate_indicators(raw), live
     except Exception as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
@@ -40,6 +51,31 @@ def get_data(asset: str):
 @app.get("/api/health")
 def health():
     return {"status": "ok", "service": "QuantX Intelligence API"}
+
+
+@app.post("/api/assistant")
+async def assistant(request: AssistantRequest):
+    if not GROQ_API_KEY or GROQ_API_KEY == "PASTE_YOUR_GROQ_API_KEY_HERE":
+        raise HTTPException(status_code=503, detail="Add your Groq API key in backend/assistant_config.py")
+    messages = [{
+        "role": "system",
+        "content": "You are Fin4X Quant Research Assistant. Give concise, practical explanations about financial indicators, asset behaviour, correlations, market regimes, and historical backtests. Never present historical results as guaranteed future returns."
+    }]
+    messages.extend({"role": item["role"], "content": item["content"]} for item in request.history if item.get("role") in {"user", "assistant"} and item.get("content"))
+    messages.append({"role": "user", "content": request.message})
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            response = await client.post("https://api.groq.com/openai/v1/chat/completions", headers={"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"}, json={"model": GROQ_MODEL, "messages": messages, "temperature": 0.2, "max_tokens": 500})
+        if response.is_error:
+            try:
+                provider_error = response.json().get("error", {}).get("message", "Groq assistant request failed")
+            except ValueError:
+                provider_error = "Groq assistant request failed"
+            raise HTTPException(status_code=502, detail=f"Groq: {provider_error}")
+        payload = response.json()
+        return {"answer": payload["choices"][0]["message"]["content"], "model": GROQ_MODEL}
+    except httpx.HTTPError as error:
+        raise HTTPException(status_code=502, detail="Unable to reach Groq assistant") from error
 
 
 @app.get("/api/assets")
@@ -62,7 +98,7 @@ def asset(asset: str, period: str = "2y"):
 def backtest(request: BacktestRequest):
     if request.asset not in ASSETS:
         raise HTTPException(status_code=400, detail="Asset not found")
-    data, live = get_data(request.asset)
+    data, live = get_data(request.asset, request.period)
     response = run_backtest(data, request.initial_capital, request.position_size, request.transaction_cost, strategy=request.strategy, fast_window=request.fast_window, slow_window=request.slow_window)
     response["asset"] = request.asset
     response["source"] = "Yahoo Finance" if live else "QuantX simulated fallback"
@@ -70,7 +106,8 @@ def backtest(request: BacktestRequest):
 
 
 @app.get("/api/correlation")
-def correlation():
+def correlation(window: int = 60):
+    window = max(20, min(int(window), 252))
     streams = {}
     live = True
     for key in ASSETS:
@@ -78,7 +115,21 @@ def correlation():
         streams[key] = data["Return"]
         live = live and is_live
     frame = __import__("pandas").DataFrame(streams).dropna()
-    return {"assets": list(ASSETS.keys()), "labels": [ASSETS[key]["label"] for key in ASSETS], "matrix": frame.corr().round(3).values.tolist(), "source": "Yahoo Finance" if live else "QuantX simulated fallback"}
+    labels = [ASSETS[key]["label"] for key in ASSETS]
+    pair_columns = {}
+    for left_index, left in enumerate(ASSETS):
+        for right in list(ASSETS)[left_index + 1:]:
+            pair_columns[f"{ASSETS[left]['label']} / {ASSETS[right]['label']}"] = frame[left].rolling(window).corr(frame[right])
+    rolling = __import__("pandas").DataFrame(pair_columns).dropna().tail(520)
+    return {
+        "assets": list(ASSETS.keys()),
+        "labels": labels,
+        "matrix": frame.corr().round(3).values.tolist(),
+        "rolling_window": window,
+        "rolling_labels": [index.strftime("%Y-%m-%d") for index in rolling.index],
+        "rolling_series": {key: values.round(3).tolist() for key, values in rolling.items()},
+        "source": "Yahoo Finance" if live else "QuantX simulated fallback",
+    }
 
 
 @app.get("/api/regimes/{asset}")
@@ -314,7 +365,7 @@ def advanced_ml_regimes(asset: str = "bitcoin"):
     profiles = []
     for index in range(3):
         sample = frame.iloc[labels == index]
-        profiles.append({"cluster": index, "days": int(len(sample)), "return": float(sample["return"].mean()), "volatility": float(sample["volatility"].mean()), "momentum": float(sample["momentum"].mean())})
+        profiles.append({"cluster": index, "days": int(len(sample)), "return": float(sample["return"].mean()) if len(sample) else 0.0, "volatility": float(sample["volatility"].mean()) if len(sample) else 0.0, "momentum": float(sample["momentum"].mean()) if len(sample) else 0.0})
     order = sorted(range(3), key=lambda index: profiles[index]["return"])
     names = ["Defensive", "Balanced", "Risk-on"]
     labels_by_cluster = {cluster: names[position] for position, cluster in enumerate(order)}
@@ -353,3 +404,10 @@ def paper_order(asset: str, side: str, quantity: float):
     portfolio["executed"] = {"asset": asset, "side": side, "quantity": quantity, "price": price}
     portfolio["source"] = "Yahoo Finance" if live else "QuantX simulated fallback"
     return portfolio
+
+
+# --- Serve Frontend Static Files & UI ---
+frontend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../frontend"))
+
+if os.path.exists(frontend_dir):
+    app.mount("/", StaticFiles(directory=frontend_dir, html=True), name="frontend")

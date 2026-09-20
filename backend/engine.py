@@ -23,6 +23,8 @@ def _mock_prices(key: str, periods: int = 520) -> pd.DataFrame:
     seed = {"gold": 7, "bitcoin": 17, "nvidia": 27}.get(key, 37)
     rng = np.random.default_rng(seed)
     dates = pd.bdate_range(end=pd.Timestamp.today().normalize(), periods=periods)
+    if len(dates) != periods:
+        dates = pd.bdate_range(end=pd.Timestamp.today().normalize(), periods=periods + 1)[:periods]
 
     base = {"gold": 1850.0, "bitcoin": 42000.0, "nvidia": 430.0}.get(key, 100.0)
     beta = {"gold": 0.34, "bitcoin": 1.25, "nvidia": 1.06}.get(key, 0.7)
@@ -76,6 +78,8 @@ def fetch_prices(key: str, period: str = "2y") -> tuple[pd.DataFrame, bool]:
 def calculate_indicators(frame: pd.DataFrame, risk_free_rate: float = 0.045) -> pd.DataFrame:
     data = frame.copy()
     data["Return"] = data["Close"].pct_change().fillna(0)
+    data["CumulativeReturn"] = (1 + data["Return"]).cumprod() - 1
+    data["RollingReturn21"] = ((1 + data["Return"]).rolling(21, min_periods=5).apply(np.prod, raw=True) - 1).fillna(0)
     data["EMA50"] = data["Close"].ewm(span=50, adjust=False).mean()
     data["EMA200"] = data["Close"].ewm(span=200, adjust=False).mean()
     data["SMA50"] = data["Close"].rolling(50, min_periods=1).mean()
@@ -94,6 +98,8 @@ def summary(data: pd.DataFrame, risk_free_rate: float = 0.045) -> dict[str, floa
     return {
         "price": float(data["Close"].iloc[-1]),
         "daily_change": float(data["Return"].iloc[-1]),
+        "cumulative_return": float(data["CumulativeReturn"].iloc[-1]),
+        "rolling_return_21d": float(data["RollingReturn21"].iloc[-1]),
         "annual_return": annual_return,
         "annual_volatility": annual_volatility,
         "sharpe": sharpe,
@@ -109,6 +115,8 @@ def serialize_series(data: pd.DataFrame, limit: int = 520) -> list[dict[str, Any
             "date": index.strftime("%Y-%m-%d"),
             "close": round(float(row["Close"]), 4),
             "return": round(float(row.get("Return", 0)), 6),
+            "cumulative_return": round(float(row.get("CumulativeReturn", 0)), 6),
+            "rolling_return_21d": round(float(row.get("RollingReturn21", 0)), 6),
             "sma50": round(float(row.get("SMA50", row["Close"])), 4),
             "ema50": round(float(row.get("EMA50", row["Close"])), 4),
             "ema200": round(float(row.get("EMA200", row["Close"])), 4),

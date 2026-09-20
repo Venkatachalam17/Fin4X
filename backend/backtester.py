@@ -25,11 +25,30 @@ def run_backtest(data: pd.DataFrame, initial_capital: float = 10000, position_si
     benchmark = initial_capital * (1 + benchmark_returns).cumprod()
     rolling_peak = equity.cummax()
     drawdowns = equity / rolling_peak - 1
+    rolling_volatility = strategy_returns.rolling(21, min_periods=5).std().fillna(0) * np.sqrt(252)
     daily_rf = (1 + risk_free_rate) ** (1 / 252) - 1
     volatility = strategy_returns.std() * np.sqrt(252)
     sharpe = ((strategy_returns - daily_rf).mean() / strategy_returns.std()) * np.sqrt(252) if strategy_returns.std() else 0.0
+    benchmark_volatility = benchmark_returns.std() * np.sqrt(252)
+    benchmark_sharpe = ((benchmark_returns - daily_rf).mean() / benchmark_returns.std()) * np.sqrt(252) if benchmark_returns.std() else 0.0
+    benchmark_drawdown = benchmark / benchmark.cummax() - 1
     trade_count = int(((target_exposure.diff().abs() > 0).sum()))
-    curve = [{"date": index.strftime("%Y-%m-%d"), "strategy": round(float(equity.loc[index]), 2), "benchmark": round(float(benchmark.loc[index]), 2)} for index in equity.index]
+    winning_days = int((strategy_returns[strategy_returns != 0] > 0).sum())
+    active_days = int((strategy_returns != 0).sum())
+    curve = []
+    exposure_changes = target_exposure.diff().fillna(target_exposure)
+    for index in equity.index:
+        change = float(exposure_changes.loc[index])
+        curve.append({
+            "date": index.strftime("%Y-%m-%d"),
+            "strategy": round(float(equity.loc[index]), 2),
+            "benchmark": round(float(benchmark.loc[index]), 2),
+            "return": round(float(strategy_returns.loc[index]), 6),
+            "volatility": round(float(rolling_volatility.loc[index]), 6),
+            "drawdown": round(float(drawdowns.loc[index]), 6),
+            "buy": change > 0,
+            "sell": change < 0,
+        })
     trade_rows = []
     for index in turnover[turnover > 0].index:
         exposure = float(target_exposure.loc[index])
@@ -43,12 +62,18 @@ def run_backtest(data: pd.DataFrame, initial_capital: float = 10000, position_si
         "metrics": {
             "total_return": float(equity.iloc[-1] / initial_capital - 1),
             "benchmark_return": float(benchmark.iloc[-1] / initial_capital - 1),
+            "benchmark_sharpe": float(benchmark_sharpe),
+            "benchmark_max_drawdown": float(benchmark_drawdown.min()),
+            "benchmark_annualized_volatility": float(benchmark_volatility),
             "sharpe": float(sharpe),
             "max_drawdown": float(drawdowns.min()),
             "final_value": float(equity.iloc[-1]),
             "benchmark_final_value": float(benchmark.iloc[-1]),
             "total_trades": trade_count,
             "annualized_volatility": float(volatility),
+            "winning_days": winning_days,
+            "active_days": active_days,
+            "win_rate": float(winning_days / active_days) if active_days else 0.0,
         },
         "curve": curve[-520:],
         "trades": trade_rows[-100:],
