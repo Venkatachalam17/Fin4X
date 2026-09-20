@@ -1,4 +1,4 @@
-# Fin4X
+# Fin4X,Finsights tailored just for u..
 
 ## Quantitative Multi-Asset Financial Intelligence and Backtesting Platform
 
