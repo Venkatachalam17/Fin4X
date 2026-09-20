@@ -6,7 +6,7 @@ Fin4X turns market history into a focused research workspace for comparing asset
 
 The platform combines financial data engineering, statistical indicators, portfolio simulation, interactive visualization, market-regime analysis, and a prototype AI research assistant in one browser-based application.
 
-> Built for research and demonstration. Historical analysis and simulated backtests do not guarantee future performance.
+> Built for research and demonstration purpose. Historical analysis and simulated backtests do not guarantee future performance.
 
 ## What Makes Fin4X Useful
 
